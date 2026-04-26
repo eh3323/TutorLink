@@ -1,0 +1,236 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  TUTOR
+  TUTEE
+  BOTH
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+}
+
+enum RequestStatus {
+  OPEN
+  MATCHED
+  CLOSED
+  CANCELLED
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  WITHDRAWN
+}
+
+enum DeliveryMode {
+  ONLINE
+  IN_PERSON
+}
+
+enum SessionStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id                    String            @id @default(cuid())
+  email                 String            @unique
+  role                  Role?
+  schoolEmailVerifiedAt DateTime?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  profile               Profile?
+  tutorProfile          TutorProfile?
+  tuteeProfile          TuteeProfile?
+  tutoringRequests      TutoringRequest[]
+  tutorThreads          MessageThread[]   @relation("TutorThreads")
+  tuteeThreads          MessageThread[]   @relation("TuteeThreads")
+  sentMessages          Message[]
+  tutorSessions         Session[]         @relation("TutorSessions")
+  tuteeSessions         Session[]         @relation("TuteeSessions")
+  writtenReviews        Review[]          @relation("WrittenReviews")
+  receivedReviews       Review[]          @relation("ReceivedReviews")
+}
+
+model Profile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  fullName       String
+  major          String?
+  bio            String?
+  school         String   @default("New York University")
+  graduationYear Int?
+  avatarUrl      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TutorProfile {
+  id                 String               @id @default(cuid())
+  userId             String               @unique
+  headline           String?
+  hourlyRateCents    Int?
+  supportsOnline     Boolean              @default(true)
+  supportsInPerson   Boolean              @default(false)
+  defaultLocation    String?
+  availabilityNotes  String?
+  verificationStatus VerificationStatus   @default(UNVERIFIED)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjects           TutorSubject[]
+  applications       RequestApplication[]
+}
+
+model TuteeProfile {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  learningGoals        String?
+  preferredBudgetCents Int?
+  supportsOnline       Boolean  @default(true)
+  supportsInPerson     Boolean  @default(false)
+  availabilityNotes    String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Subject {
+  id         String            @id @default(cuid())
+  department String
+  code       String
+  name       String
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  tutorLinks TutorSubject[]
+  requests   TutoringRequest[]
+  sessions   Session[]
+
+  @@unique([department, code])
+}
+
+model TutorSubject {
+  tutorProfileId  String
+  subjectId       String
+  proficiencyNote String?
+  isPrimary       Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  tutorProfile    TutorProfile @relation(fields: [tutorProfileId], references: [id], onDelete: Cascade)
+  subject         Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@id([tutorProfileId, subjectId])
+}
+
+model TutoringRequest {
+  id               String               @id @default(cuid())
+  tuteeId          String
+  subjectId        String
+  title            String
+  description      String
+  budgetMinCents   Int?
+  budgetMaxCents   Int?
+  preferredMode    DeliveryMode
+  locationText     String?
+  preferredStartAt DateTime?
+  preferredEndAt   DateTime?
+  status           RequestStatus        @default(OPEN)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  tutee            User                 @relation(fields: [tuteeId], references: [id], onDelete: Cascade)
+  subject          Subject              @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  applications     RequestApplication[]
+  messageThreads   MessageThread[]
+  sessions         Session[]
+}
+
+model RequestApplication {
+  id             String            @id @default(cuid())
+  requestId      String
+  tutorProfileId String
+  message        String?
+  status         ApplicationStatus @default(PENDING)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  request        TutoringRequest   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  tutorProfile   TutorProfile      @relation(fields: [tutorProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, tutorProfileId])
+}
+
+model MessageThread {
+  id        String           @id @default(cuid())
+  tutorId   String
+  tuteeId   String
+  requestId String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  tutor     User             @relation("TutorThreads", fields: [tutorId], references: [id], onDelete: Cascade)
+  tutee     User             @relation("TuteeThreads", fields: [tuteeId], references: [id], onDelete: Cascade)
+  request   TutoringRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  messages  Message[]
+  sessions  Session[]
+}
+
+model Message {
+  id        String        @id @default(cuid())
+  threadId  String
+  senderId  String
+  body      String
+  createdAt DateTime      @default(now())
+  thread    MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender    User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id              String           @id @default(cuid())
+  tutorId         String
+  tuteeId         String
+  subjectId       String
+  threadId        String?
+  requestId       String?
+  scheduledAt     DateTime
+  durationMinutes Int
+  mode            DeliveryMode
+  locationText    String?
+  agreedRateCents Int?
+  notes           String?
+  status          SessionStatus    @default(PENDING)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  tutor           User             @relation("TutorSessions", fields: [tutorId], references: [id], onDelete: Cascade)
+  tutee           User             @relation("TuteeSessions", fields: [tuteeId], references: [id], onDelete: Cascade)
+  subject         Subject          @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  thread          MessageThread?   @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  request         TutoringRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  reviews         Review[]
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  sessionId  String
+  authorId   String
+  revieweeId String
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  session    Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  author     User     @relation("WrittenReviews", fields: [authorId], references: [id], onDelete: Cascade)
+  reviewee   User     @relation("ReceivedReviews", fields: [revieweeId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, authorId])
+}
