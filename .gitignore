@@ -1,0 +1,14 @@
+.DS_Store
+
+# Environment files
+.env
+.env.*
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.next/
+coverage/
