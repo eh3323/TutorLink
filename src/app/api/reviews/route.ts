@@ -1,6 +1,7 @@
-import { ApiError, apiCreated, handleRouteError, readJsonBody } from "@/lib/api";
+import { auth } from "@/lib/auth";
+import { ApiError, apiCreated, apiOk, handleRouteError, readJsonBody } from "@/lib/api";
 import { requireSessionUser } from "@/lib/permissions";
-import { createReview } from "@/lib/reviews";
+import { createReview, listReviews, parseReviewSearchParams } from "@/lib/reviews";
 import { parseNumber, parseString, requireObject } from "@/lib/validation";
 
 type ReviewPostBody = {
@@ -58,6 +59,18 @@ export async function POST(request: Request) {
         comment,
       }),
     );
+  } catch (error) {
+    return handleRouteError(error);
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const filters = parseReviewSearchParams(searchParams);
+    const session = await auth();
+
+    return apiOk(await listReviews(filters, session?.user?.id));
   } catch (error) {
     return handleRouteError(error);
   }

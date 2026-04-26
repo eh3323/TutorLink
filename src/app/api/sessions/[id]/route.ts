@@ -2,7 +2,7 @@ import { DeliveryMode, SessionStatus } from "@prisma/client";
 
 import { ApiError, apiOk, handleRouteError, readJsonBody } from "@/lib/api";
 import { requireSessionUser } from "@/lib/permissions";
-import { updateSession } from "@/lib/sessions";
+import { getSessionDetail, updateSession } from "@/lib/sessions";
 import { parseNumber, parseString, requireObject } from "@/lib/validation";
 
 type SessionPatchBody = {
@@ -152,6 +152,17 @@ export async function PATCH(request: Request, context: SessionRouteContext) {
         notes,
       }),
     );
+  } catch (error) {
+    return handleRouteError(error);
+  }
+}
+
+export async function GET(_: Request, context: SessionRouteContext) {
+  try {
+    const sessionUser = await requireSessionUser();
+    const { id } = await context.params;
+
+    return apiOk(await getSessionDetail(sessionUser, id));
   } catch (error) {
     return handleRouteError(error);
   }

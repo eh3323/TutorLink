@@ -60,6 +60,12 @@ type UpdateSessionInput = {
   notes?: string | null;
 };
 
+type SessionSearchParams = {
+  mine?: "all" | "tutor" | "tutee";
+  status?: SessionStatus;
+  mode?: DeliveryMode;
+};
+
 const TRANSITIONS: Record<SessionStatus, SessionStatus[]> = {
   PENDING: [SessionStatus.PENDING, SessionStatus.CONFIRMED, SessionStatus.CANCELLED],
   CONFIRMED: [
@@ -128,6 +134,58 @@ function assertParticipantAccess(sessionUser: SessionUser, tutorId: string, tute
       "Your account cannot act as the tutee side of this session.",
     );
   }
+}
+
+export function parseSessionSearchParams(searchParams: URLSearchParams): SessionSearchParams {
+  const mineRaw = searchParams.get("mine");
+  const statusRaw = searchParams.get("status");
+  const modeRaw = searchParams.get("mode");
+
+  let mine: SessionSearchParams["mine"];
+  if (mineRaw) {
+    if (mineRaw !== "all" && mineRaw !== "tutor" && mineRaw !== "tutee") {
+      throw new ApiError(400, "INVALID_INPUT", "mine must be all, tutor, or tutee.");
+    }
+
+    mine = mineRaw;
+  }
+
+  let status: SessionStatus | undefined;
+  if (statusRaw) {
+    if (
+      statusRaw !== SessionStatus.PENDING &&
+      statusRaw !== SessionStatus.CONFIRMED &&
+      statusRaw !== SessionStatus.COMPLETED &&
+      statusRaw !== SessionStatus.CANCELLED
+    ) {
+      throw new ApiError(
+        400,
+        "INVALID_INPUT",
+        "status must be PENDING, CONFIRMED, COMPLETED, or CANCELLED.",
+      );
+    }
+
+    status = statusRaw;
+  }
+
+  let mode: DeliveryMode | undefined;
+  if (modeRaw) {
+    if (modeRaw !== DeliveryMode.ONLINE && modeRaw !== DeliveryMode.IN_PERSON) {
+      throw new ApiError(
+        400,
+        "INVALID_INPUT",
+        "mode must be ONLINE or IN_PERSON.",
+      );
+    }
+
+    mode = modeRaw;
+  }
+
+  return {
+    mine,
+    status,
+    mode,
+  };
 }
 
 function formatSession(session: SessionRecord) {
@@ -309,6 +367,56 @@ export async function createSession(sessionUser: SessionUser, input: CreateSessi
   });
 
   return formatSession(createdSession);
+}
+
+export async function listSessions(sessionUser: SessionUser, filters: SessionSearchParams) {
+  const sessions = await db.session.findMany({
+    where: {
+      OR: [
+        ...(filters.mine === "tutor"
+          ? [{ tutorId: sessionUser.id }]
+          : filters.mine === "tutee"
+            ? [{ tuteeId: sessionUser.id }]
+            : [{ tutorId: sessionUser.id }, { tuteeId: sessionUser.id }]),
+      ],
+      ...(filters.status ? { status: filters.status } : {}),
+      ...(filters.mode ? { mode: filters.mode } : {}),
+    },
+    include: sessionInclude,
+    orderBy: [
+      {
+        scheduledAt: "asc",
+      },
+      {
+        createdAt: "desc",
+      },
+    ],
+  });
+
+  return {
+    sessions: sessions.map(formatSession),
+    filters: {
+      mine: filters.mine ?? "all",
+      status: filters.status ?? null,
+      mode: filters.mode ?? null,
+    },
+    total: sessions.length,
+  };
+}
+
+export async function getSessionDetail(sessionUser: SessionUser, sessionId: string) {
+  const session = await db.session.findUnique({
+    where: { id: sessionId },
+    include: sessionInclude,
+  });
+
+  if (!session) {
+    throw new ApiError(404, "SESSION_NOT_FOUND", "Session was not found.");
+  }
+
+  assertParticipantAccess(sessionUser, session.tutorId, session.tuteeId);
+
+  return formatSession(session);
 }
 
 export async function updateSession(

@@ -52,6 +52,7 @@ Failed responses:
 - `INVALID_SESSION_STATUS_TRANSITION`
 - `SESSION_NOT_COMPLETED`
 - `REVIEW_ALREADY_EXISTS`
+- `REVIEW_NOT_FOUND`
 - `INTERNAL_SERVER_ERROR`
 
 ## Stable Shared Backend Utilities
@@ -291,6 +292,33 @@ Response shape:
 }
 ```
 
+#### `GET /api/threads`
+
+Purpose:
+- List the signed-in user's message threads.
+
+Auth:
+- required
+
+Supported query params:
+- `mine=all|tutor|tutee`
+
+Rules:
+- only returns threads where the signed-in user is a participant
+- `mine=tutor` filters to tutor-side participation
+- `mine=tutee` filters to tutee-side participation
+
+#### `GET /api/threads/:id`
+
+Purpose:
+- Return one thread's participant and request metadata.
+
+Auth:
+- required
+
+Rules:
+- the signed-in user must be a participant in the thread
+
 #### `POST /api/messages`
 
 Purpose:
@@ -337,7 +365,22 @@ Response shape:
 }
 ```
 
-### Next routes to implement against this contract
+#### `GET /api/messages`
+
+Purpose:
+- Return message history for one thread.
+
+Auth:
+- required
+
+Supported query params:
+- `threadId`
+- `limit`
+
+Rules:
+- `threadId` is required
+- `limit` defaults to `50` and is capped at `100`
+- the signed-in user must be a participant in the thread
 
 #### `POST /api/requests`
 
@@ -346,6 +389,65 @@ Purpose:
 
 Auth:
 - required
+
+Request shape:
+
+```json
+{
+  "subjectId": "subject id",
+  "title": "Need help with CSCI-UA 101",
+  "description": "Looking for help with recursion and problem set review.",
+  "budgetMinCents": 2000,
+  "budgetMaxCents": 4000,
+  "preferredMode": "ONLINE | IN_PERSON",
+  "locationText": "Bobst Library | Zoom",
+  "preferredStartAt": "2026-05-01T18:00:00.000Z",
+  "preferredEndAt": "2026-05-01T20:00:00.000Z"
+}
+```
+
+Rules:
+- the signed-in user is always the request owner and must be tutee-capable
+- `subjectId` must exist
+- `title` is required and capped at `120` characters
+- `description` is required and capped at `2000` characters
+- `budgetMinCents` cannot be greater than `budgetMaxCents`
+- if both preferred times are present, `preferredStartAt` cannot be later than `preferredEndAt`
+
+Response shape:
+- created tutoring request with subject and tutee summary
+
+#### `GET /api/requests`
+
+Purpose:
+- List tutoring requests for marketplace browsing or current-user management.
+
+Auth:
+- optional, but required when `mine=true`
+
+Supported query params:
+- `subject`
+- `status`
+- `mode`
+- `mine`
+
+Query rules:
+- `status` must be `OPEN`, `MATCHED`, `CLOSED`, or `CANCELLED`
+- `mode` must be `ONLINE` or `IN_PERSON`
+- `mine=true` filters to the signed-in user's own requests
+
+Response shape:
+- list of formatted tutoring requests with subject, tutee summary, and counts
+
+#### `GET /api/requests/:id`
+
+Purpose:
+- Return one tutoring request detail payload.
+
+Auth:
+- optional for MVP
+
+### Next routes to implement against this contract
 
 #### `POST /api/sessions`
 
@@ -383,6 +485,24 @@ Rules:
 Response shape:
 - session object with participants, subject, optional thread, and optional request
 
+#### `GET /api/sessions`
+
+Purpose:
+- List the signed-in user's sessions.
+
+Auth:
+- required
+
+Supported query params:
+- `mine=all|tutor|tutee`
+- `status`
+- `mode`
+
+Rules:
+- only returns sessions where the signed-in user is a participant
+- `status` must be `PENDING`, `CONFIRMED`, `COMPLETED`, or `CANCELLED`
+- `mode` must be `ONLINE` or `IN_PERSON`
+
 #### `PATCH /api/sessions/:id`
 
 Purpose:
@@ -404,6 +524,17 @@ Editable fields:
 - `locationText`
 - `agreedRateCents`
 - `notes`
+
+#### `GET /api/sessions/:id`
+
+Purpose:
+- Return one session detail payload.
+
+Auth:
+- required
+
+Rules:
+- the signed-in user must be the tutor or tutee participant of the session
 
 #### `POST /api/reviews`
 
@@ -429,6 +560,31 @@ Rules:
 - each participant can leave at most one review per session
 - `rating` must be an integer from `1` to `5`
 - the review target is always the other participant in the session
+
+#### `GET /api/reviews`
+
+Purpose:
+- List reviews by reviewee, author, session, or current user context.
+
+Auth:
+- optional, but required when `mine=true`
+
+Supported query params:
+- `revieweeId`
+- `authorId`
+- `sessionId`
+- `mine`
+
+Rules:
+- `mine=true` returns reviews authored by or about the signed-in user
+
+#### `GET /api/reviews/:id`
+
+Purpose:
+- Return one review detail payload.
+
+Auth:
+- optional for MVP
 
 ## Ownership Boundaries
 

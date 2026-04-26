@@ -1,5 +1,5 @@
-import { apiCreated, handleRouteError, readJsonBody } from "@/lib/api";
-import { sendThreadMessage } from "@/lib/messages";
+import { apiCreated, apiOk, handleRouteError, readJsonBody } from "@/lib/api";
+import { listThreadMessages, parseMessageListParams, sendThreadMessage } from "@/lib/messages";
 import { requireSessionUser } from "@/lib/permissions";
 import { parseString, requireObject } from "@/lib/validation";
 
@@ -32,6 +32,18 @@ export async function POST(request: Request) {
     }
 
     return apiCreated(await sendThreadMessage(sessionUser, threadId, body));
+  } catch (error) {
+    return handleRouteError(error);
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    const sessionUser = await requireSessionUser();
+    const { searchParams } = new URL(request.url);
+    const { threadId, limit } = parseMessageListParams(searchParams);
+
+    return apiOk(await listThreadMessages(sessionUser, threadId, limit));
   } catch (error) {
     return handleRouteError(error);
   }

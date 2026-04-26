@@ -32,6 +32,13 @@ type CreateReviewInput = {
   comment?: string | null;
 };
 
+type ReviewSearchParams = {
+  revieweeId?: string;
+  authorId?: string;
+  sessionId?: string;
+  mine?: boolean;
+};
+
 function formatSubjectLabel(subject: { department: string; code: string; name: string }) {
   return `${subject.department} ${subject.code} - ${subject.name}`;
 }
@@ -75,6 +82,31 @@ export function formatReview(review: ReviewRecord) {
         label: formatSubjectLabel(review.session.subject),
       },
     },
+  };
+}
+
+export function parseReviewSearchParams(searchParams: URLSearchParams): ReviewSearchParams {
+  const revieweeId = searchParams.get("revieweeId")?.trim() || undefined;
+  const authorId = searchParams.get("authorId")?.trim() || undefined;
+  const sessionId = searchParams.get("sessionId")?.trim() || undefined;
+  const mineRaw = searchParams.get("mine");
+
+  let mine: boolean | undefined;
+  if (mineRaw != null) {
+    if (mineRaw === "true") {
+      mine = true;
+    } else if (mineRaw === "false") {
+      mine = false;
+    } else {
+      throw new ApiError(400, "INVALID_INPUT", "mine must be true or false.");
+    }
+  }
+
+  return {
+    revieweeId,
+    authorId,
+    sessionId,
+    mine,
   };
 }
 
@@ -152,6 +184,59 @@ export async function createReview(sessionUser: SessionUser, input: CreateReview
     },
     include: reviewInclude,
   });
+
+  return formatReview(review);
+}
+
+export async function listReviews(searchParams: ReviewSearchParams, sessionUserId?: string) {
+  if (searchParams.mine && !sessionUserId) {
+    throw new ApiError(
+      401,
+      "UNAUTHORIZED",
+      "You must be signed in to query your own reviews.",
+    );
+  }
+
+  const reviews = await db.review.findMany({
+    where: {
+      ...(searchParams.sessionId ? { sessionId: searchParams.sessionId } : {}),
+      ...(searchParams.authorId ? { authorId: searchParams.authorId } : {}),
+      ...(searchParams.revieweeId ? { revieweeId: searchParams.revieweeId } : {}),
+      ...(searchParams.mine && sessionUserId
+        ? {
+            OR: [{ authorId: sessionUserId }, { revieweeId: sessionUserId }],
+          }
+        : {}),
+    },
+    include: reviewInclude,
+    orderBy: [
+      {
+        createdAt: "desc",
+      },
+    ],
+  });
+
+  return {
+    reviews: reviews.map(formatReview),
+    filters: {
+      revieweeId: searchParams.revieweeId ?? null,
+      authorId: searchParams.authorId ?? null,
+      sessionId: searchParams.sessionId ?? null,
+      mine: searchParams.mine ?? null,
+    },
+    total: reviews.length,
+  };
+}
+
+export async function getReviewDetail(reviewId: string) {
+  const review = await db.review.findUnique({
+    where: { id: reviewId },
+    include: reviewInclude,
+  });
+
+  if (!review) {
+    throw new ApiError(404, "REVIEW_NOT_FOUND", "Review was not found.");
+  }
 
   return formatReview(review);
 }
