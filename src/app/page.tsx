@@ -1,11 +1,18 @@
-export default function Home() {
+import Link from "next/link";
+
+import { SignOutButton } from "@/components/auth/sign-out-button";
+import { auth } from "@/lib/auth";
+
+export default async function Home() {
+  const session = await auth();
+
   const stack = [
     "Next.js App Router",
     "TypeScript",
     "Tailwind CSS v4",
     "PostgreSQL",
     "Prisma",
-    "NextAuth or equivalent auth layer",
+    "NextAuth credentials auth",
   ];
 
   const flows = [
@@ -16,10 +23,10 @@ export default function Home() {
   ];
 
   const nextSteps = [
-    "Design the MVP database schema",
-    "Add Prisma and the first migration",
-    "Set up auth and NYU email restriction",
-    "Define profile, tutor, message, and session contracts",
+    "Build profile read and update routes",
+    "Add role-aware onboarding after sign-in",
+    "Define tutor, request, message, and session contracts",
+    "Start the marketplace pages on top of the current auth and DB layer",
   ];
 
   return (
@@ -31,7 +38,7 @@ export default function Home() {
               <span className="rounded bg-cyan-400/15 px-2 py-1 font-medium text-cyan-200">
                 NYU CS Design Project
               </span>
-              <span>Web foundation initialized</span>
+              <span>Web foundation, database, and auth initialized</span>
             </div>
             <div className="space-y-4">
               <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-white">
@@ -39,8 +46,8 @@ export default function Home() {
               </h1>
               <p className="max-w-3xl text-base leading-7 text-slate-300">
                 A peer-to-peer tutoring marketplace for NYU students. This web
-                project is now set up to move into database design,
-                authentication, and marketplace feature development.
+                project now has a live web foundation, Prisma data model, and a
+                working first-pass NYU auth flow.
               </p>
             </div>
           </div>
@@ -65,9 +72,44 @@ export default function Home() {
                 Next Focus
               </p>
               <p className="mt-2 text-lg font-semibold text-white">
-                Schema + Auth
+                Profile + Marketplace
               </p>
             </div>
+          </div>
+        </section>
+
+        <section className="flex flex-col gap-4 rounded-xl border border-white/10 bg-white/5 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-200">
+              {session?.user
+                ? `Signed in as ${session.user.email}`
+                : "No active session"}
+            </p>
+            <p className="text-sm leading-6 text-slate-400">
+              {session?.user
+                ? `Current role: ${session.user.role}`
+                : "Use the development sign-in flow to create or access an account."}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {session?.user ? (
+              <>
+                <Link
+                  href="/dashboard"
+                  className="inline-flex h-10 items-center justify-center rounded-lg bg-cyan-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+                >
+                  Open dashboard
+                </Link>
+                <SignOutButton />
+              </>
+            ) : (
+              <Link
+                href="/signin"
+                className="inline-flex h-10 items-center justify-center rounded-lg bg-cyan-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+              >
+                Sign in
+              </Link>
+            )}
           </div>
         </section>
 
@@ -137,9 +179,6 @@ export default function Home() {
                 `TEAM_ROLE_ASSIGNMENT.md`
               </div>
               <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-4">
-                `PROJECT_LEAD_TASK_DECOMPOSITION.md`
-              </div>
-              <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-4">
                 `TutorLink_SSDS_Requirements_Analysis (2).docx`
               </div>
             </div>
@@ -150,8 +189,8 @@ export default function Home() {
               Today&apos;s Goal
             </h2>
             <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-4 py-4 text-sm leading-6 text-cyan-50">
-              Finish the web foundation, then move directly into Prisma schema
-              design and the first database migration.
+              Move from auth foundation into profile APIs, onboarding, and the
+              first tutor marketplace pages.
             </div>
           </div>
         </section>
