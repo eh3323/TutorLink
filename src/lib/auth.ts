@@ -117,6 +117,21 @@ export const authOptions: NextAuthOptions = {
         token.email = user.email;
       }
 
+      if (token.id) {
+        const currentUser = await db.user.findUnique({
+          where: { id: token.id as string },
+          include: {
+            profile: true,
+          },
+        });
+
+        if (currentUser) {
+          token.role = currentUser.role ?? token.role;
+          token.name = currentUser.profile?.fullName ?? token.name;
+          token.email = currentUser.email;
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
