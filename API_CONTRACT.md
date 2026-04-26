@@ -45,6 +45,13 @@ Failed responses:
 - `INVALID_INPUT`
 - `INVALID_JSON`
 - `USER_NOT_FOUND`
+- `REQUEST_NOT_FOUND`
+- `THREAD_NOT_FOUND`
+- `SUBJECT_NOT_FOUND`
+- `SESSION_NOT_FOUND`
+- `INVALID_SESSION_STATUS_TRANSITION`
+- `SESSION_NOT_COMPLETED`
+- `REVIEW_ALREADY_EXISTS`
 - `INTERNAL_SERVER_ERROR`
 
 ## Stable Shared Backend Utilities
@@ -159,8 +166,6 @@ Rules:
 Response shape:
 - same envelope and payload shape as `GET /api/me`
 
-### Next routes to implement against this contract
-
 #### `GET /api/tutors`
 
 Purpose:
@@ -169,25 +174,75 @@ Purpose:
 Auth:
 - optional for MVP, but may become required later
 
-Suggested query params:
+Supported query params:
 - `subject`
 - `minRate`
 - `maxRate`
 - `mode`
 - `verified`
 
+Query rules:
+- `mode` must be `online` or `in-person`
+- `verified` must be `true` or `false`
+- `minRate` and `maxRate` are integer cent values
+
+Response shape:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "tutors": [
+      {
+        "id": "user id",
+        "role": "TUTOR | BOTH",
+        "profile": {
+          "fullName": "string",
+          "major": "string | null",
+          "bio": "string | null",
+          "school": "string",
+          "graduationYear": 2027,
+          "avatarUrl": "string | null"
+        },
+        "tutorProfile": {
+          "headline": "string | null",
+          "hourlyRateCents": 4500,
+          "supportsOnline": true,
+          "supportsInPerson": false,
+          "defaultLocation": "string | null",
+          "availabilityNotes": "string | null",
+          "verificationStatus": "UNVERIFIED | PENDING | VERIFIED",
+          "subjects": []
+        },
+        "stats": {
+          "averageRating": 4.5,
+          "reviewCount": 3
+        }
+      }
+    ],
+    "filters": {
+      "subject": "CSCI",
+      "minRate": 2000,
+      "maxRate": 5000,
+      "mode": "online",
+      "verified": true
+    },
+    "total": 1
+  }
+}
+```
+
 #### `GET /api/tutors/:id`
 
 Purpose:
 - Return one tutor's public detail payload.
 
-#### `POST /api/requests`
-
-Purpose:
-- Create a tutoring request as a tutee-capable user.
-
 Auth:
-- required
+- optional for MVP
+
+Response shape:
+- same tutor base shape as list route
+- plus `recentReviews`
 
 #### `POST /api/threads`
 
@@ -197,6 +252,45 @@ Purpose:
 Auth:
 - required
 
+Request shape:
+
+```json
+{
+  "tutorId": "user id",
+  "tuteeId": "user id",
+  "requestId": "optional request id"
+}
+```
+
+Rules:
+- the signed-in user must be either `tutorId` or `tuteeId`
+- `tutorId` must belong to a tutor-capable user
+- `tuteeId` must belong to a tutee-capable user
+- if `requestId` is present, it must belong to `tuteeId`
+- if the same tutor/tutee/request combination already has a thread, the route reuses it
+
+Response shape:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "reused": false,
+    "thread": {
+      "id": "thread id",
+      "createdAt": "ISO date",
+      "updatedAt": "ISO date",
+      "participants": {
+        "tutor": {},
+        "tutee": {}
+      },
+      "request": {},
+      "latestMessage": null
+    }
+  }
+}
+```
+
 #### `POST /api/messages`
 
 Purpose:
@@ -205,21 +299,111 @@ Purpose:
 Auth:
 - required
 
-#### `POST /api/sessions`
+Request shape:
+
+```json
+{
+  "threadId": "thread id",
+  "body": "message text"
+}
+```
+
+Rules:
+- the signed-in user must be the tutor or tutee participant of the thread
+- the sender must still have the matching tutor/tutee capability for their side of the thread
+- `body` is required and capped at 2000 characters
+
+Response shape:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "message": {
+      "id": "message id",
+      "threadId": "thread id",
+      "senderId": "user id",
+      "body": "message text",
+      "createdAt": "ISO date",
+      "sender": {}
+    },
+    "thread": {
+      "id": "thread id",
+      "participants": {},
+      "request": {},
+      "latestMessage": {}
+    }
+  }
+}
+```
+
+### Next routes to implement against this contract
+
+#### `POST /api/requests`
 
 Purpose:
-- Create a tutoring session from a thread or request.
+- Create a tutoring request as a tutee-capable user.
 
 Auth:
 - required
+
+#### `POST /api/sessions`
+
+Purpose:
+- Create a tutoring session between one tutor and one tutee.
+
+Auth:
+- required
+
+Request shape:
+
+```json
+{
+  "tutorId": "user id",
+  "tuteeId": "user id",
+  "subjectId": "subject id",
+  "threadId": "optional thread id",
+  "requestId": "optional request id",
+  "scheduledAt": "2026-04-30T18:30:00.000Z",
+  "durationMinutes": 60,
+  "mode": "ONLINE | IN_PERSON",
+  "locationText": "Bobst Library | Zoom",
+  "agreedRateCents": 4000,
+  "notes": "Focus on dynamic programming"
+}
+```
+
+Rules:
+- the signed-in user must be either the tutor or the tutee participant
+- `subjectId` must exist
+- if `threadId` is present, it must belong to the same tutor/tutee pair
+- if `requestId` is present, it must belong to `tuteeId` and match `subjectId`
+- `durationMinutes` must be between `15` and `600`
+
+Response shape:
+- session object with participants, subject, optional thread, and optional request
 
 #### `PATCH /api/sessions/:id`
 
 Purpose:
-- Update session status and agreed details.
+- Update session status and editable session details.
 
 Auth:
 - required
+
+Allowed status flow:
+- `PENDING -> CONFIRMED | CANCELLED`
+- `CONFIRMED -> COMPLETED | CANCELLED`
+- `COMPLETED` and `CANCELLED` are terminal
+
+Editable fields:
+- `status`
+- `scheduledAt`
+- `durationMinutes`
+- `mode`
+- `locationText`
+- `agreedRateCents`
+- `notes`
 
 #### `POST /api/reviews`
 
@@ -228,6 +412,23 @@ Purpose:
 
 Auth:
 - required
+
+Request shape:
+
+```json
+{
+  "sessionId": "session id",
+  "rating": 5,
+  "comment": "Very clear explanations and well prepared."
+}
+```
+
+Rules:
+- the signed-in user must be the tutor or tutee participant of the session
+- the session must already be `COMPLETED`
+- each participant can leave at most one review per session
+- `rating` must be an integer from `1` to `5`
+- the review target is always the other participant in the session
 
 ## Ownership Boundaries
 
