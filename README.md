@@ -2,7 +2,39 @@
 
 TutorLink is a peer-to-peer tutoring marketplace designed for university communities, starting with NYU. The platform helps students find approachable academic support by connecting tutees with qualified peer tutors from their own school.
 
-This repository is the starting point for the NYU CS Design Project implementation.
+This repository is the web implementation workspace for the NYU CS Design Project.
+
+## Current Tech Stack
+
+- Next.js
+- TypeScript
+- Tailwind CSS v4
+- PostgreSQL
+- Prisma
+- NextAuth or equivalent auth layer
+
+## Local Setup
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Start the development server:
+
+```bash
+npm run dev
+```
+
+3. Open `http://localhost:3000`
+
+## Planned Project Structure
+
+- `src/app/` - App Router pages and layouts
+- `src/components/` - shared UI and feature components
+- `src/lib/` - shared utilities, DB clients, auth helpers
+- `prisma/` - Prisma schema, migrations, and seed files
 
 ## Project Overview
 
@@ -65,4 +97,4 @@ This README is based on the current project specification document in this folde
 
 ## Status
 
-Project bootstrap in progress.
+Web foundation initialized. Next step is database schema design and backend/auth setup.
