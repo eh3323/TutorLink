@@ -477,6 +477,7 @@ async function ensureDemoReview() {
         tutorId: tutor.id,
         tuteeId: tutee.id,
         subjectId: subject.id,
+        proposedById: tutor.id,
         scheduledAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7),
         durationMinutes: 60,
         mode: "IN_PERSON",

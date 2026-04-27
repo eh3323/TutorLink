@@ -107,7 +107,27 @@ export default async function SessionDetailPage({
           ) : null}
         </section>
 
-        <SessionControls sessionId={detail.id} status={detail.status} />
+        <SessionControls
+          sessionId={detail.id}
+          status={detail.status as "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED"}
+          viewerIsProposer={detail.viewerIsProposer}
+          scheduledAtIso={
+            detail.scheduledAt instanceof Date
+              ? detail.scheduledAt.toISOString()
+              : new Date(detail.scheduledAt as unknown as string).toISOString()
+          }
+          durationMinutes={detail.durationMinutes}
+          threadId={detail.thread?.id ?? null}
+        />
+
+        {detail.status === "CANCELLED" && detail.cancellationReason ? (
+          <section className="rounded-2xl border border-rose-400/20 bg-rose-400/5 p-5 text-sm text-rose-100">
+            <p className="text-xs font-semibold uppercase tracking-wide text-rose-200">
+              Cancellation note
+            </p>
+            <p className="mt-2 whitespace-pre-wrap">{detail.cancellationReason}</p>
+          </section>
+        ) : null}
 
         <section className="rounded-2xl border border-white/10 bg-white/5 p-6">
           <h2 className="text-lg font-semibold text-white">Reviews</h2>

@@ -14,16 +14,21 @@ import { NewSessionButton } from "./new-session-button";
 
 export default async function SessionsPage() {
   const session = await auth();
-
   if (!session?.user) {
     redirect("/signin?callbackUrl=/sessions");
   }
 
   const sessions = await listSessionsForUser(session.user);
 
-  const upcoming = sessions.filter(
-    (s) => s.status === "PENDING" || s.status === "CONFIRMED",
-  );
+  const incoming = sessions.filter((s) => s.status === "PENDING" && !s.viewerIsProposer);
+  const outgoing = sessions.filter((s) => s.status === "PENDING" && s.viewerIsProposer);
+  const confirmed = sessions
+    .filter((s) => s.status === "CONFIRMED")
+    .sort(
+      (a, b) =>
+        new Date(a.scheduledAt as unknown as string).getTime() -
+        new Date(b.scheduledAt as unknown as string).getTime(),
+    );
   const past = sessions.filter((s) => s.status === "COMPLETED" || s.status === "CANCELLED");
 
   return (
@@ -34,58 +39,108 @@ export default async function SessionsPage() {
             <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
               Sessions
             </p>
-            <h1 className="mt-1 text-3xl font-semibold text-white">Your tutoring sessions</h1>
+            <h1 className="mt-1 text-3xl font-semibold text-white">
+              Your tutoring sessions
+            </h1>
             <p className="mt-2 text-sm text-slate-400">
-              Confirm, complete, or cancel sessions here. Leave a review once a session is
-              complete.
+              Sessions only become real once both sides accept. Cancel any time
+              before the session ends.
             </p>
           </div>
           <NewSessionButton />
         </section>
 
-        <section className="space-y-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-            Upcoming
-          </h2>
-          {upcoming.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-center text-sm text-slate-400">
-              No upcoming sessions. Message a tutor to schedule one.
-            </div>
-          ) : (
-            <div className="grid gap-3">
-              {upcoming.map((s) => (
-                <SessionCard key={s.id} session={s} />
-              ))}
-            </div>
-          )}
-        </section>
+        <Bucket
+          title="Awaiting your decision"
+          subtitle="Someone proposed a session — accept or decline."
+          empty="Nothing waiting on you."
+          items={incoming}
+          tone="amber"
+        />
 
-        <section className="space-y-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-            Past
-          </h2>
-          {past.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-xs text-slate-400">
-              Past sessions will show up here.
-            </div>
-          ) : (
-            <div className="grid gap-3">
-              {past.map((s) => (
-                <SessionCard key={s.id} session={s} />
-              ))}
-            </div>
-          )}
-        </section>
+        <Bucket
+          title="Waiting on the other side"
+          subtitle="You proposed these. They'll show up under confirmed once accepted."
+          empty="No outstanding proposals."
+          items={outgoing}
+          tone="slate"
+        />
+
+        <Bucket
+          title="Upcoming"
+          subtitle="Both sides agreed. Add them to your calendar and join the session room when it starts."
+          empty="No confirmed sessions yet."
+          items={confirmed}
+          tone="emerald"
+        />
+
+        <Bucket
+          title="Past"
+          subtitle=""
+          empty="Past sessions will show up here."
+          items={past}
+          tone="muted"
+        />
       </div>
     </main>
   );
 }
 
-function SessionCard({
-  session,
+type SessionItem = Awaited<ReturnType<typeof listSessionsForUser>>[number];
+
+function Bucket({
+  title,
+  subtitle,
+  empty,
+  items,
+  tone,
 }: {
-  session: Awaited<ReturnType<typeof listSessionsForUser>>[number];
+  title: string;
+  subtitle: string;
+  empty: string;
+  items: SessionItem[];
+  tone: "amber" | "slate" | "emerald" | "muted";
 }) {
+  const accent =
+    tone === "amber"
+      ? "text-amber-300"
+      : tone === "emerald"
+        ? "text-emerald-300"
+        : tone === "muted"
+          ? "text-slate-400"
+          : "text-slate-300";
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className={`text-sm font-semibold uppercase tracking-wide ${accent}`}>
+          {title}
+        </h2>
+        {subtitle ? <p className="mt-1 text-xs text-slate-400">{subtitle}</p> : null}
+      </div>
+      {items.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-xs text-slate-400">
+          {empty}
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {items.map((s) => (
+            <SessionCard key={s.id} session={s} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SessionCard({ session }: { session: SessionItem }) {
+  const tag =
+    session.status === "PENDING" && session.viewerIsProposer
+      ? "Outgoing proposal"
+      : session.status === "PENDING"
+        ? "Awaiting you"
+        : formatStatusLabel(session.status);
+
   return (
     <Link
       href={`/sessions/${session.id}`}
@@ -128,7 +183,7 @@ function SessionCard({
                   : "bg-amber-400/15 text-amber-200"
           }`}
         >
-          {formatStatusLabel(session.status)}
+          {tag}
         </span>
       </div>
     </Link>

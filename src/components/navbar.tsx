@@ -35,11 +35,11 @@ export async function Navbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/80 backdrop-blur">
       <div className="mx-auto flex w-full max-w-6xl items-center gap-6 px-6 py-4">
-        <Link href="/" className="flex items-center gap-2 text-sm font-semibold text-white">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-300 text-slate-950">
-            T
-          </span>
-          <span>TutorLink</span>
+        <Link
+          href="/"
+          className="text-base font-semibold tracking-tight text-white hover:text-cyan-200"
+        >
+          TutorLink
         </Link>
 
         <nav className="hidden flex-1 items-center gap-1 md:flex">

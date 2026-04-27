@@ -168,27 +168,32 @@ model Message {
 }
 
 model Session {
-  id              String           @id @default(cuid())
-  tutorId         String
-  tuteeId         String
-  subjectId       String
-  threadId        String?
-  requestId       String?
-  scheduledAt     DateTime
-  durationMinutes Int
-  mode            String
-  locationText    String?
-  agreedRateCents Int?
-  notes           String?
-  status          String           @default("PENDING")
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  tutor           User             @relation("TutorSessions", fields: [tutorId], references: [id], onDelete: Cascade)
-  tutee           User             @relation("TuteeSessions", fields: [tuteeId], references: [id], onDelete: Cascade)
-  subject         Subject          @relation(fields: [subjectId], references: [id], onDelete: Restrict)
-  thread          MessageThread?   @relation(fields: [threadId], references: [id], onDelete: SetNull)
-  request         TutoringRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
-  reviews         Review[]
+  id                 String           @id @default(cuid())
+  tutorId            String
+  tuteeId            String
+  subjectId          String
+  threadId           String?
+  requestId          String?
+  scheduledAt        DateTime
+  durationMinutes    Int
+  mode               String
+  locationText       String?
+  agreedRateCents    Int?
+  notes              String?
+  status             String           @default("PENDING")
+  proposedById       String
+  cancelledById      String?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  roomToken          String           @unique @default(cuid())
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  tutor              User             @relation("TutorSessions", fields: [tutorId], references: [id], onDelete: Cascade)
+  tutee              User             @relation("TuteeSessions", fields: [tuteeId], references: [id], onDelete: Cascade)
+  subject            Subject          @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  thread             MessageThread?   @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  request            TutoringRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  reviews            Review[]
 }
 
 model Review {
