@@ -60,7 +60,8 @@ export function handleRouteError(error: unknown) {
     return apiError(error);
   }
 
-  console.error("Unhandled API error:", error);
+  // surface anything we didn't catch above
+  console.error("unhandled api error:", error);
 
   return apiError(
     new ApiError(500, "INTERNAL_SERVER_ERROR", "An unexpected error occurred."),

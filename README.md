@@ -1,117 +1,128 @@
 # TutorLink
 
-TutorLink is a peer-to-peer tutoring marketplace for the NYU community. Students sign in with their `@nyu.edu` email, set up a tutor or tutee profile, and then browse, message, book, and review tutoring sessions inside the app.
+peer-to-peer tutoring marketplace for nyu. you sign in with an `@nyu.edu` email,
+set up a tutor or tutee profile, and then browse, message, book, and review
+sessions inside the app.
 
-This repo is the full-stack web implementation for the NYU CS Design Project.
+this repo is the full web app for the nyu cs design project.
 
-## Feature status (MVP)
+## what works
 
-- [x] NYU email-based sign-up and login (credentials-based, dev-friendly)
-- [x] Tutor and tutee profiles with role switching (`TUTOR` / `TUTEE` / `BOTH`)
-- [x] Tutor browse with subject, mode, rate, and verification filters
-- [x] Tutor detail page with subjects, reviews, and a one-click message button
-- [x] Tutee request board with posting flow
-- [x] In-app direct messaging with threads
-- [x] Session booking from inside a thread, with status transitions (pending → confirmed → completed / cancelled)
-- [x] Review + rating flow for completed sessions
-- [x] Protected dashboard with upcoming sessions, recent messages, and profile summary
+- nyu email sign-up and login (credentials, dev-friendly)
+- tutor / tutee profiles with role switching (`TUTOR` / `TUTEE` / `BOTH`)
+- tutor browse with subject, mode, rate, and verification filters
+- tutor detail page with subjects, reviews, and a message button
+- tutee request board with posting flow
+- in-app threads + messaging
+- session booking inside a thread, with status transitions
+  (pending → confirmed → completed / cancelled)
+- review + rating after a completed session
+- protected dashboard with upcoming sessions, threads, and a profile summary
+- admin console: user search, suspend/promote, identity verification queue
+  (with file uploads admins can download), request + session admin views
 
-## Tech stack
+## stack
 
-- **Framework**: Next.js 16 (App Router, webpack)
-- **Language**: TypeScript
-- **UI**: Tailwind CSS v4
-- **Auth**: NextAuth (credentials provider)
-- **Database**: SQLite (default) via Prisma
-- **ORM**: Prisma 6
+- next.js 16 (app router, webpack)
+- typescript
+- tailwind v4
+- nextauth (credentials provider)
+- postgres (neon in prod) via prisma 6
+- vercel blob for avatar + verification doc storage
 
-> The schema is written to be Postgres-compatible (strings are used instead of native enums). To deploy on Postgres, change the Prisma datasource provider back to `postgresql`, re-run migrations, and update `DATABASE_URL`.
-
-## Local setup
+## local setup
 
 ```bash
 # 1. install deps
 npm install
 
-# 2. copy env file and create the local db
+# 2. copy env file and run migrations
 cp .env.example .env
-npx prisma migrate deploy   # or: npx prisma migrate dev
+npx prisma migrate deploy
 
-# 3. load demo tutors, tutees, requests, and one completed session+review
+# 3. seed demo tutors/tutees/requests/sessions
 npm run prisma:seed
 
-# 4. run the dev server
+# 4. start dev
 npm run dev
 ```
 
-Open `http://localhost:3000` and sign in with any `@nyu.edu` email. Useful demo accounts created by the seed script:
+open `http://localhost:3000` and sign in with any `@nyu.edu` email.
+demo accounts created by the seed:
 
-| Email | Role | Notes |
+| email | role | notes |
 | --- | --- | --- |
-| `ava.chen@nyu.edu` | Tutor | Verified, already has a completed review |
-| `liam.park@nyu.edu` | Tutor | Math tutor |
-| `sofia.gomez@nyu.edu` | Tutor | Econ tutor, online only |
-| `maya.singh@nyu.edu` | Tutee | Has an open CSCI UA 102 request |
-| `daniel.cho@nyu.edu` | Tutee | Has an open ECON UA 1 request |
+| `admin@nyu.edu` | admin | full admin console access |
+| `ava.chen@nyu.edu` | tutor + admin | verified, has a completed review |
+| `liam.park@nyu.edu` | tutor | math tutor |
+| `sofia.gomez@nyu.edu` | tutor | econ tutor, online only |
+| `maya.singh@nyu.edu` | tutee | open csci ua 102 request |
+| `daniel.cho@nyu.edu` | tutee | open econ ua 1 request |
 
-On first sign-in we create the user, the profile, and the correct tutor/tutee profile shell based on the role you pick.
+all demo accounts share the password `tutorlink123`.
 
-## Project structure
+## structure
 
 ```
 prisma/
-  schema.prisma          Prisma data model
-  migrations/            SQL migrations
-  seed.ts                Demo seed data
+  schema.prisma     prisma data model
+  migrations/       sql migrations
+  seed.ts           demo seed data
 
 src/
-  app/                   Next.js App Router pages + API routes
-    api/                 API route handlers (see API_CONTRACT.md)
-    dashboard/           Protected dashboard
-    profile/             Role + profile editor
-    tutors/              Browse + detail
-    requests/            Post + browse + detail
-    messages/            Threads + conversation view + in-thread scheduler
-    sessions/            Session list + detail + status + review
-    signin/              Credentials sign-in page
-  components/            Shared components (navbar, auth buttons, providers)
-  lib/                   Server-side helpers (db, auth, API envelope, tutor/request/session logic)
-  types/                 Ambient module augmentation
+  app/              app router pages + api routes
+    api/            api route handlers (see API_CONTRACT.md)
+    admin/          admin console
+    dashboard/      protected dashboard
+    profile/        role + profile editor
+    tutors/         browse + detail
+    requests/       post + browse + detail
+    messages/       threads + conversation + in-thread scheduler
+    sessions/       session list + detail + status + review
+    signin/         credentials sign-in
+    register/       sign-up
+    users/[id]/     public profile (tutor + tutee view)
+  components/       shared components (navbar, role-badge, avatar, etc)
+  lib/              server helpers (db, auth, api envelope, business logic)
+  types/            ambient module augmentation
 ```
 
-## API surface
+## api
 
-See `API_CONTRACT.md`. The contract is implemented by the route handlers in `src/app/api`. Every route returns the `{ ok, data }` / `{ ok, error }` envelope defined there.
+see `API_CONTRACT.md`. every route returns the `{ ok, data }` /
+`{ ok, error }` envelope. routes implemented:
 
-Implemented now:
-
-- `GET  /api/me` · `GET /api/profile` · `PATCH /api/profile`
-- `GET  /api/tutors` · `GET /api/tutors/:id`
-- `GET  /api/requests` · `POST /api/requests` · `GET /api/requests/:id`
-- `GET  /api/subjects`
+- `GET /api/me` · `GET /api/profile` · `PATCH /api/profile`
+- `POST /api/profile/verify` · `GET /api/profile/verify/document`
+- `GET /api/tutors` · `GET /api/tutors/:id`
+- `GET /api/requests` · `POST /api/requests` · `GET /api/requests/:id`
+- `GET /api/subjects`
 - `POST /api/threads` · `GET /api/threads` · `GET /api/threads/:id`
-- `POST /api/messages`
+- `POST /api/messages` · `GET /api/notifications`
 - `POST /api/sessions` · `GET /api/sessions` · `GET /api/sessions/:id` · `PATCH /api/sessions/:id`
 - `POST /api/reviews`
+- `POST /api/avatar` · `DELETE /api/avatar`
+- admin: `/api/admin/*`
 
-## Scripts
+## scripts
 
-- `npm run dev` — Next dev server
+- `npm run dev` — next dev server
 - `npm run build` / `npm start` — production build
-- `npm run lint` — ESLint
-- `npm run prisma:generate` — regenerate Prisma Client
-- `npm run prisma:studio` — open Prisma Studio
-- `npm run prisma:seed` — re-run the seed script (idempotent)
+- `npm run lint` — eslint
+- `npm run prisma:generate` — regenerate prisma client
+- `npm run prisma:studio` — open prisma studio
+- `npm run prisma:seed` — re-run seed (idempotent)
 
-## Compliance notes
+## compliance notes
 
-- Only `@nyu.edu` emails can sign in.
-- No integration with NYU SIS / transcripts. The data model supports a tutor verification flag, but the MVP flow does not pull anything from university systems.
-- No payment processing. `Session.agreedRateCents` is informational only.
+- only `@nyu.edu` emails can sign in.
+- no integration with nyu sis / transcripts. tutor verification is reviewed
+  manually by an admin from an uploaded document.
+- no payment processing. `Session.agreedRateCents` is informational only.
 
-## Team
+## team
 
-- Alan Zhang (`yz10074`)
-- Erfu Hai (`eh3323`)
-- Michael Bian (`zb2253`)
-- David Rokicki (`dr3492`)
+- alan zhang (`yz10074`)
+- erfu hai (`eh3323`)
+- michael bian (`zb2253`)
+- david rokicki (`dr3492`)

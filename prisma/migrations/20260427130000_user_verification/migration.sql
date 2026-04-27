@@ -1,4 +1,4 @@
--- Lift verification to the User level so tutees can also request verification.
+-- move verification up to the user level so tutees can apply too
 ALTER TABLE "User"
   ADD COLUMN "verificationStatus" TEXT NOT NULL DEFAULT 'UNVERIFIED';
 
@@ -8,7 +8,7 @@ ALTER TABLE "User"
 ALTER TABLE "User"
   ADD COLUMN "verificationSubmittedAt" TIMESTAMP(3);
 
--- Backfill: any tutor that was already approved as VERIFIED stays verified at the user level.
+-- carry over already-verified tutors to the user row
 UPDATE "User" u
 SET "verificationStatus" = 'VERIFIED'
 FROM "TutorProfile" tp

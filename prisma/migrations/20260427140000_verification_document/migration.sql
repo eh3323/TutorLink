@@ -1,4 +1,4 @@
--- Add columns for the verification document attachment uploaded by the user.
+-- doc upload metadata for verification
 ALTER TABLE "User"
   ADD COLUMN "verificationDocumentUrl" TEXT;
 

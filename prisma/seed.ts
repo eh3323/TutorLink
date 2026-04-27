@@ -545,7 +545,7 @@ async function ensureAdmin() {
     },
   });
 
-  // Also promote Ava to admin so seeded tutor data can double as admin demo.
+  // give ava admin too so seed has a second admin to play with
   await prisma.user.updateMany({
     where: { email: "ava.chen@nyu.edu" },
     data: { isAdmin: true },
@@ -560,8 +560,8 @@ async function main() {
   await ensureRequests();
   await ensureDemoReview();
   console.log(
-    `Seed complete. All demo accounts use the password "${DEMO_PASSWORD}". ` +
-      `Admin account: admin@nyu.edu (ava.chen@nyu.edu also has admin).`,
+    `seed done. all demo accounts share the password "${DEMO_PASSWORD}". ` +
+      `admin: admin@nyu.edu (ava.chen@nyu.edu also has admin).`,
   );
 }
 

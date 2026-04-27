@@ -28,7 +28,7 @@ export function NotificationsButton() {
         const json = await res.json();
         if (!cancelled && json.ok) setData(json.data);
       } catch {
-        /* swallow network errors; the bell just stays empty */
+        // network blip, leave the bell empty
       }
     }
     load();

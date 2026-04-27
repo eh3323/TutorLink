@@ -17,8 +17,7 @@ export function SignOutButton({
   async function handleClick() {
     setIsBusy(true);
     await signOut({ redirect: false });
-    // Force a hard navigation so server components re-evaluate auth state
-    // and protected pages don't flash their old (cached) content.
+    // hard reload so server pages re-check auth and don't flash stale stuff
     window.location.replace(redirectTo);
   }
 

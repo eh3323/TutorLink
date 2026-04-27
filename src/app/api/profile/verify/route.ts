@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 import { VerificationStatus } from "@/lib/enums";
 import { requireSessionUser } from "@/lib/permissions";
 
-const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
+const MAX_BYTES = 8 * 1024 * 1024; // 8mb cap
 const ALLOWED_DOC_MIME: Record<string, string> = {
   "application/pdf": ".pdf",
   "application/msword": ".doc",
@@ -137,7 +137,7 @@ export async function POST(request: Request) {
           token: process.env.BLOB_READ_WRITE_TOKEN,
         });
       } catch {
-        /* ignore prior delete errors */
+        // old blob delete can fail, fine
       }
     }
 

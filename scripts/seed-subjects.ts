@@ -33,7 +33,7 @@ async function main() {
     });
   }
   const total = await prisma.subject.count();
-  console.log(`Subjects in database: ${total}`);
+  console.log(`subjects in db: ${total}`);
 }
 
 main()

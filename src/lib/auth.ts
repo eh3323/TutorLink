@@ -15,7 +15,7 @@ type AuthUser = {
 };
 
 export const authOptions: NextAuthOptions = {
-  // NextAuth 4.24+; types may lag — needed on Vercel without a fixed NEXTAUTH_URL.
+  // trustHost is in 4.24 but types lag, vercel needs this
   ...({ trustHost: true } as Record<string, unknown>),
   session: {
     strategy: "jwt",
@@ -83,7 +83,7 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (!currentUser || currentUser.isSuspended) {
-          // Invalidate the session: returning an empty token forces NextAuth to re-auth.
+          // nuke the token so they have to sign in again
           return {};
         }
 
@@ -97,7 +97,7 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (!token.id) {
-        // Token was invalidated (suspended/deleted user). Return session without user.
+        // token got nuked above, hand back a session with no user
         return { ...session, user: undefined as unknown as typeof session.user };
       }
 

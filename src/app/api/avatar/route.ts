@@ -8,7 +8,7 @@ import { ApiError, apiOk, handleRouteError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { requireSessionUser } from "@/lib/permissions";
 
-const MAX_BYTES = 2 * 1024 * 1024; // 2 MB
+const MAX_BYTES = 2 * 1024 * 1024; // 2mb cap
 const ALLOWED_MIME: Record<string, string> = {
   "image/png": ".png",
   "image/jpeg": ".jpg",
@@ -117,7 +117,7 @@ export async function DELETE() {
       try {
         await del(prev, { token: process.env.BLOB_READ_WRITE_TOKEN });
       } catch {
-        /* ignore storage delete errors; still clear profile */
+        // blob delete can fail, still clear the row
       }
     }
     await db.profile.update({
