@@ -1,0 +1,4 @@
+# Never upload local env to Vercel (breaks Prisma when DATABASE_URL is sqlite, leaks secrets)
+.env
+.env.*
+!.env.example

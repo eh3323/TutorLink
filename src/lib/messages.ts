@@ -348,6 +348,60 @@ export async function getThreadDetailForUser(sessionUser: SessionUser, threadId:
   };
 }
 
+const MESSAGE_LIST_DEFAULT = 50;
+const MESSAGE_LIST_MAX = 100;
+
+export function parseMessageListParams(searchParams: URLSearchParams): {
+  threadId: string;
+  limit: number;
+} {
+  const threadId = searchParams.get("threadId")?.trim() ?? "";
+  if (!threadId) {
+    throw new ApiError(400, "INVALID_INPUT", "threadId is required.");
+  }
+
+  let limit = MESSAGE_LIST_DEFAULT;
+  const rawLimit = searchParams.get("limit");
+  if (rawLimit != null && rawLimit !== "") {
+    const n = Number.parseInt(rawLimit, 10);
+    if (!Number.isFinite(n) || n < 1) {
+      throw new ApiError(400, "INVALID_INPUT", "limit must be a positive number.");
+    }
+    limit = Math.min(n, MESSAGE_LIST_MAX);
+  }
+
+  return { threadId, limit };
+}
+
+export async function listThreadMessages(
+  sessionUser: SessionUser,
+  threadId: string,
+  limit: number,
+) {
+  const thread = await db.messageThread.findUnique({
+    where: { id: threadId },
+    include: threadInclude,
+  });
+
+  if (!thread) {
+    throw new ApiError(404, "THREAD_NOT_FOUND", "Message thread was not found.");
+  }
+
+  ensureThreadParticipantRole(sessionUser, thread);
+
+  const rows = await db.message.findMany({
+    where: { threadId },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    include: messageInclude,
+  });
+
+  const chronological = [...rows].reverse();
+  return {
+    messages: chronological.map(formatMessage),
+  };
+}
+
 export async function sendThreadMessage(sessionUser: SessionUser, threadId: string, body: string) {
   const thread = await db.messageThread.findUnique({
     where: { id: threadId },

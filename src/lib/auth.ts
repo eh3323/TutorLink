@@ -15,6 +15,8 @@ type AuthUser = {
 };
 
 export const authOptions: NextAuthOptions = {
+  // NextAuth 4.24+; types may lag — needed on Vercel without a fixed NEXTAUTH_URL.
+  ...({ trustHost: true } as Record<string, unknown>),
   session: {
     strategy: "jwt",
   },
