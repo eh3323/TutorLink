@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Avatar } from "@/components/avatar";
+import { MathText } from "@/components/math-text";
 import {
   formatRelativeTime,
   nyDateTimeLocalFromDate,
@@ -189,7 +190,10 @@ export function ThreadView({
                       : "bg-white/10 text-slate-100"
                   }`}
                 >
-                  <p className="whitespace-pre-wrap">{message.body}</p>
+                  <MathText
+                    className="whitespace-pre-wrap"
+                    text={message.body}
+                  />
                   <p
                     className={`mt-1 text-[10px] ${
                       isMine ? "text-slate-800" : "text-slate-400"

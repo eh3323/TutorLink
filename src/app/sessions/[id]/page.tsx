@@ -16,6 +16,8 @@ import {
 } from "@/lib/sessions";
 import { SessionAttachments } from "./session-attachments";
 import { SessionControls } from "./session-controls";
+import { SessionExtras } from "./session-extras";
+import { ReplyForm } from "./reply-form";
 import { ReviewForm } from "./review-form";
 
 export default async function SessionDetailPage({
@@ -154,6 +156,54 @@ export default async function SessionDetailPage({
           />
         ) : null}
 
+        {isOnline ? (
+          <SessionExtras
+            sessionId={detail.id}
+            status={detail.status}
+            livekitEnabled={Boolean(
+              process.env.LIVEKIT_URL &&
+                process.env.LIVEKIT_API_KEY &&
+                process.env.LIVEKIT_API_SECRET,
+            )}
+            recordingStorageEnabled={Boolean(
+              (process.env.LIVEKIT_S3_BUCKET ?? process.env.AWS_S3_BUCKET) &&
+                (process.env.LIVEKIT_S3_REGION ?? process.env.AWS_REGION) &&
+                (process.env.LIVEKIT_S3_ACCESS_KEY ??
+                  process.env.AWS_ACCESS_KEY_ID) &&
+                (process.env.LIVEKIT_S3_SECRET ??
+                  process.env.AWS_SECRET_ACCESS_KEY),
+            )}
+            aiSummaryEnabled={Boolean(process.env.OPENAI_API_KEY)}
+            viewerRole={detail.viewerRole as "TUTOR" | "TUTEE"}
+            recording={{
+              tutorConsentedAt:
+                detail.recordingConsentTutorAt instanceof Date
+                  ? detail.recordingConsentTutorAt.toISOString()
+                  : (detail.recordingConsentTutorAt as string | null),
+              tuteeConsentedAt:
+                detail.recordingConsentTuteeAt instanceof Date
+                  ? detail.recordingConsentTuteeAt.toISOString()
+                  : (detail.recordingConsentTuteeAt as string | null),
+              startedAt:
+                detail.recordingStartedAt instanceof Date
+                  ? detail.recordingStartedAt.toISOString()
+                  : (detail.recordingStartedAt as string | null),
+              endedAt:
+                detail.recordingEndedAt instanceof Date
+                  ? detail.recordingEndedAt.toISOString()
+                  : (detail.recordingEndedAt as string | null),
+              url: detail.recordingUrl ?? null,
+            }}
+            summary={{
+              text: detail.summary ?? null,
+              generatedAt:
+                detail.summaryGeneratedAt instanceof Date
+                  ? detail.summaryGeneratedAt.toISOString()
+                  : (detail.summaryGeneratedAt as string | null),
+            }}
+          />
+        ) : null}
+
         <section className="rounded-2xl border border-white/10 bg-white/5 p-6">
           <h2 className="text-lg font-semibold text-white">Reviews</h2>
           {detail.reviews.length === 0 ? (
@@ -164,37 +214,95 @@ export default async function SessionDetailPage({
             </p>
           ) : (
             <div className="mt-4 space-y-3">
-              {detail.reviews.map((review) => (
-                <div
-                  key={review.id}
-                  className="rounded-xl border border-white/10 bg-slate-950/60 p-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <Avatar
-                      name={review.author.fullName}
-                      src={review.author.avatarUrl ?? null}
-                      size="sm"
-                    />
-                    <div>
-                      <p className="text-sm font-semibold text-white">
-                        {review.authorIsMe ? "You" : review.author.fullName}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {review.rating}★ · {formatDateTime(review.createdAt)}
-                      </p>
+              {detail.reviews.map((review) => {
+                const directionLabel =
+                  review.direction === "TUTOR_TO_TUTEE"
+                    ? "Tutor → tutee"
+                    : "Tutee → tutor";
+                const criteria = [
+                  ["Punctuality", review.criteria.punctuality],
+                  ["Preparation", review.criteria.preparation],
+                  ["Communication", review.criteria.communication],
+                  ...(review.criteria.helpfulness != null
+                    ? [["Helpfulness", review.criteria.helpfulness]]
+                    : []),
+                  ...(review.criteria.respectful != null
+                    ? [["Respectful", review.criteria.respectful]]
+                    : []),
+                ].filter(([, v]) => v != null) as Array<[string, number]>;
+                return (
+                  <div
+                    key={review.id}
+                    className="rounded-xl border border-white/10 bg-slate-950/60 p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar
+                          name={review.author.fullName}
+                          src={review.author.avatarUrl ?? null}
+                          size="sm"
+                        />
+                        <div>
+                          <p className="text-sm font-semibold text-white">
+                            {review.authorIsMe ? "You" : review.author.fullName}
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            {review.rating}★ · {formatDateTime(review.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {review.isVerified ? (
+                          <span className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-100">
+                            Verified
+                          </span>
+                        ) : null}
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-300">
+                          {directionLabel}
+                        </span>
+                      </div>
                     </div>
+                    {review.comment ? (
+                      <p className="mt-3 text-sm text-slate-200">{review.comment}</p>
+                    ) : null}
+                    {criteria.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {criteria.map(([label, value]) => (
+                          <span
+                            key={label}
+                            className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-slate-200"
+                          >
+                            {label}: {value}★
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {review.reply ? (
+                      <div className="mt-3 rounded-lg border border-white/10 bg-white/5 p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-cyan-200">
+                          Reply
+                          {review.replyAt ? ` · ${formatDateTime(review.replyAt)}` : ""}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-200">{review.reply}</p>
+                      </div>
+                    ) : review.canReply ? (
+                      <div className="mt-3">
+                        <ReplyForm reviewId={review.id} />
+                      </div>
+                    ) : null}
                   </div>
-                  {review.comment ? (
-                    <p className="mt-3 text-sm text-slate-200">{review.comment}</p>
-                  ) : null}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
           {canReview ? (
             <div className="mt-6">
-              <ReviewForm sessionId={detail.id} />
+              <ReviewForm
+                sessionId={detail.id}
+                viewerRole={detail.viewerRole as "TUTOR" | "TUTEE"}
+                counterpartName={detail.counterpart.fullName}
+              />
             </div>
           ) : null}
         </section>

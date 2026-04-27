@@ -2,7 +2,12 @@ import { Prisma } from "@prisma/client";
 
 import { ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
-import { Role, VerificationStatus } from "@/lib/enums";
+import { Role, SessionStatus, VerificationStatus } from "@/lib/enums";
+import {
+  computeTutorTier,
+  compareTutorTier,
+  type TutorTier,
+} from "@/lib/tutor-tier";
 
 const tutorListInclude = Prisma.validator<Prisma.UserInclude>()({
   profile: true,
@@ -16,9 +21,14 @@ const tutorListInclude = Prisma.validator<Prisma.UserInclude>()({
     },
   },
   receivedReviews: {
+    where: { direction: "TUTEE_TO_TUTOR" },
     select: {
       rating: true,
     },
+  },
+  tutorSessions: {
+    where: { status: SessionStatus.COMPLETED },
+    select: { id: true, tuteeId: true },
   },
 });
 
@@ -34,10 +44,11 @@ const tutorDetailInclude = Prisma.validator<Prisma.UserInclude>()({
     },
   },
   receivedReviews: {
+    where: { direction: "TUTEE_TO_TUTOR" },
     orderBy: {
       createdAt: "desc",
     },
-    take: 5,
+    take: 25,
     include: {
       author: {
         include: {
@@ -50,6 +61,10 @@ const tutorDetailInclude = Prisma.validator<Prisma.UserInclude>()({
         },
       },
     },
+  },
+  tutorSessions: {
+    where: { status: SessionStatus.COMPLETED },
+    select: { id: true, tuteeId: true },
   },
 });
 
@@ -67,6 +82,7 @@ type TutorSearchParams = {
   maxRate?: number;
   mode?: "online" | "in-person";
   verified?: boolean;
+  sort?: "tier" | "rating" | "rate-asc" | "rate-desc" | "newest";
 };
 
 function formatSubjectLabel(subject: { department: string; code: string; name: string }) {
@@ -90,11 +106,20 @@ function formatTutorSummary(user: TutorListRecord) {
   }
 
   const averageRating = calculateAverageRating(user.receivedReviews);
+  const completedSessions = user.tutorSessions.length;
+  const uniqueTutees = new Set(user.tutorSessions.map((s) => s.tuteeId)).size;
+  const tier = computeTutorTier({
+    verificationStatus: user.verificationStatus,
+    completedSessions,
+    averageRating,
+    uniqueTutees,
+  });
 
   return {
     id: user.id,
     role: user.role,
     verificationStatus: user.verificationStatus,
+    createdAt: user.createdAt,
     profile: {
       fullName: user.profile.fullName,
       major: user.profile.major,
@@ -124,7 +149,12 @@ function formatTutorSummary(user: TutorListRecord) {
     stats: {
       averageRating,
       reviewCount: user.receivedReviews.length,
+      completedSessions,
+      uniqueTutees,
+      repeatRate: tier.repeatRate,
     },
+    tier: tier.tier,
+    tierScore: tier.score,
   };
 }
 
@@ -136,11 +166,20 @@ function formatTutorDetail(user: TutorDetailRecord) {
   }
 
   const averageRating = calculateAverageRating(user.receivedReviews);
+  const completedSessions = user.tutorSessions.length;
+  const uniqueTutees = new Set(user.tutorSessions.map((s) => s.tuteeId)).size;
+  const tier = computeTutorTier({
+    verificationStatus: user.verificationStatus,
+    completedSessions,
+    averageRating,
+    uniqueTutees,
+  });
 
   return {
     id: user.id,
     role: user.role,
     verificationStatus: user.verificationStatus,
+    createdAt: user.createdAt,
     profile: {
       fullName: user.profile.fullName,
       major: user.profile.major,
@@ -170,15 +209,24 @@ function formatTutorDetail(user: TutorDetailRecord) {
     stats: {
       averageRating,
       reviewCount: user.receivedReviews.length,
+      completedSessions,
+      uniqueTutees,
+      repeatRate: tier.repeatRate,
     },
+    tier: tier.tier,
+    tierScore: tier.score,
     recentReviews: user.receivedReviews.map((review) => ({
       id: review.id,
       rating: review.rating,
       comment: review.comment,
       createdAt: review.createdAt,
+      isVerified: review.isVerified,
+      reply: review.reply,
+      replyAt: review.replyAt,
       author: {
         id: review.author.id,
         fullName: review.author.profile?.fullName ?? "Anonymous",
+        avatarUrl: review.author.profile?.avatarUrl ?? null,
       },
       subject:
         review.session?.subject == null
@@ -246,12 +294,23 @@ export function parseTutorSearchParams(searchParams: URLSearchParams): TutorSear
     }
   }
 
+  const sortRaw = searchParams.get("sort")?.trim();
+  let sort: TutorSearchParams["sort"];
+  if (sortRaw) {
+    const allowed = new Set(["tier", "rating", "rate-asc", "rate-desc", "newest"]);
+    if (!allowed.has(sortRaw)) {
+      throw new ApiError(400, "INVALID_INPUT", "sort is not a recognised value.");
+    }
+    sort = sortRaw as TutorSearchParams["sort"];
+  }
+
   return {
     subject,
     minRate,
     maxRate,
     mode,
     verified,
+    sort,
   };
 }
 
@@ -307,22 +366,61 @@ export async function listTutors(searchParams: TutorSearchParams) {
       },
     },
     include: tutorListInclude,
-    orderBy: [
-      { verificationStatus: "asc" },
-      { createdAt: "desc" },
-    ],
+    // db-side ordering only matters as a tiebreak; final ordering happens in
+    // memory once we've computed the tier/score for every tutor
+    orderBy: [{ createdAt: "desc" }],
   });
 
+  const formatted = tutors.map(formatTutorSummary);
+  const sortKey = searchParams.sort ?? "tier";
+
+  switch (sortKey) {
+    case "rating":
+      formatted.sort((a, b) => (b.stats.averageRating ?? 0) - (a.stats.averageRating ?? 0));
+      break;
+    case "rate-asc":
+      formatted.sort(
+        (a, b) =>
+          (a.tutorProfile.hourlyRateCents ?? Number.POSITIVE_INFINITY) -
+          (b.tutorProfile.hourlyRateCents ?? Number.POSITIVE_INFINITY),
+      );
+      break;
+    case "rate-desc":
+      formatted.sort(
+        (a, b) =>
+          (b.tutorProfile.hourlyRateCents ?? -1) -
+          (a.tutorProfile.hourlyRateCents ?? -1),
+      );
+      break;
+    case "newest":
+      formatted.sort(
+        (a, b) =>
+          new Date(b.createdAt as Date).getTime() -
+          new Date(a.createdAt as Date).getTime(),
+      );
+      break;
+    case "tier":
+    default:
+      formatted.sort((a, b) =>
+        compareTutorTier(
+          { tier: a.tier as TutorTier, score: a.tierScore, createdAt: a.createdAt },
+          { tier: b.tier as TutorTier, score: b.tierScore, createdAt: b.createdAt },
+        ),
+      );
+      break;
+  }
+
   return {
-    tutors: tutors.map(formatTutorSummary),
+    tutors: formatted,
     filters: {
       subject: searchParams.subject ?? null,
       minRate: searchParams.minRate ?? null,
       maxRate: searchParams.maxRate ?? null,
       mode: searchParams.mode ?? null,
       verified: searchParams.verified ?? null,
+      sort: searchParams.sort ?? "tier",
     },
-    total: tutors.length,
+    total: formatted.length,
   };
 }
 

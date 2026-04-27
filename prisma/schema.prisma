@@ -189,6 +189,18 @@ model Session {
   cancelledAt        DateTime?
   cancellationReason String?
   roomToken          String           @unique @default(cuid())
+  // recording + ai summary (opt-in by both sides)
+  recordingConsentTutorAt DateTime?
+  recordingConsentTuteeAt DateTime?
+  recordingUrl       String?
+  recordingStartedAt DateTime?
+  recordingEndedAt   DateTime?
+  // billing meter snapshots: minutes actually spent in the room
+  meterMinutes       Int              @default(0)
+  meterFinalisedAt   DateTime?
+  // ai summary
+  summary            String?
+  summaryGeneratedAt DateTime?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
   tutor              User                @relation("TutorSessions", fields: [tutorId], references: [id], onDelete: Cascade)
@@ -216,17 +228,31 @@ model SessionAttachment {
 }
 
 model Review {
-  id         String   @id @default(cuid())
-  sessionId  String
-  authorId   String
-  revieweeId String
-  rating     Int
-  comment    String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  session    Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  author     User     @relation("WrittenReviews", fields: [authorId], references: [id], onDelete: Cascade)
-  reviewee   User     @relation("ReceivedReviews", fields: [revieweeId], references: [id], onDelete: Cascade)
+  id                  String    @id @default(cuid())
+  sessionId           String
+  authorId            String
+  revieweeId          String
+  rating              Int
+  comment             String?
+  // sub-criteria 1..5; punctuality / preparation / communication apply to both sides;
+  // helpfulness is tutee→tutor only and respectful is tutor→tutee only
+  ratingPunctuality   Int?
+  ratingPreparation   Int?
+  ratingCommunication Int?
+  ratingHelpfulness   Int?
+  ratingRespectful    Int?
+  // direction: TUTEE_TO_TUTOR or TUTOR_TO_TUTEE; computed from author role
+  direction           String    @default("TUTEE_TO_TUTOR")
+  // verified means the review came from a real completed session participant
+  isVerified          Boolean   @default(true)
+  // tutor / tutee may post one reply per review
+  reply               String?
+  replyAt             DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  session             Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  author              User      @relation("WrittenReviews", fields: [authorId], references: [id], onDelete: Cascade)
+  reviewee            User      @relation("ReceivedReviews", fields: [revieweeId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, authorId])
 }

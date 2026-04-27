@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ApiError } from "@/lib/api";
 import { Avatar } from "@/components/avatar";
+import { TutorTierBadge } from "@/components/tutor-tier-badge";
 import { auth } from "@/lib/auth";
 import {
   formatCurrencyCents,
@@ -10,6 +11,8 @@ import {
   formatRating,
   formatStatusLabel,
 } from "@/lib/format";
+import { extractReviewHighlights } from "@/lib/review-highlights";
+import { type TutorTier } from "@/lib/tutor-tier";
 import { getTutorDetail } from "@/lib/tutors";
 import { StartThreadButton } from "./start-thread-button";
 
@@ -32,6 +35,7 @@ export default async function TutorDetailPage({
   }
 
   const rate = formatCurrencyCents(tutor.tutorProfile.hourlyRateCents);
+  const highlights = extractReviewHighlights(tutor.recentReviews, { limit: 6 });
 
   return (
     <main className="flex-1">
@@ -53,16 +57,26 @@ export default async function TutorDetailPage({
           <div className="flex-1 space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-semibold text-white">{tutor.profile.fullName}</h1>
-              {tutor.verificationStatus === "VERIFIED" ? (
-                <span className="rounded-full bg-emerald-400/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-200">
-                  Verified
-                </span>
-              ) : (
+              <TutorTierBadge tier={tutor.tier as TutorTier} />
+              {tutor.verificationStatus !== "VERIFIED" ? (
                 <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-slate-300">
                   {formatStatusLabel(tutor.verificationStatus ?? "UNVERIFIED")}
                 </span>
-              )}
+              ) : null}
             </div>
+            {highlights.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {highlights.map((h) => (
+                  <span
+                    key={h.label}
+                    className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2.5 py-0.5 text-[11px] font-medium text-cyan-100"
+                    title={`Mentioned in ${h.count} review${h.count === 1 ? "" : "s"}`}
+                  >
+                    {`"${h.label}"`}
+                  </span>
+                ))}
+              </div>
+            ) : null}
             <p className="text-sm text-slate-300">
               {tutor.profile.major ?? "NYU student"}
               {tutor.profile.graduationYear
@@ -140,9 +154,16 @@ export default async function TutorDetailPage({
                       key={review.id}
                       className="rounded-xl border border-white/10 bg-slate-950/60 p-4"
                     >
-                      <div className="flex items-center justify-between text-xs text-slate-400">
-                        <span className="font-semibold text-white">
-                          {review.author.fullName}
+                      <div className="flex items-center justify-between gap-2 text-xs text-slate-400">
+                        <span className="flex items-center gap-2">
+                          <span className="font-semibold text-white">
+                            {review.author.fullName}
+                          </span>
+                          {review.isVerified ? (
+                            <span className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-100">
+                              Verified
+                            </span>
+                          ) : null}
                         </span>
                         <span>{formatDate(review.createdAt)}</span>
                       </div>
@@ -154,6 +175,15 @@ export default async function TutorDetailPage({
                         <p className="mt-2 text-xs text-slate-500">
                           {review.subject.department} {review.subject.code}
                         </p>
+                      ) : null}
+                      {review.reply ? (
+                        <div className="mt-3 rounded-lg border border-white/10 bg-white/5 p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-cyan-200">
+                            Reply from {tutor.profile.fullName}
+                            {review.replyAt ? ` · ${formatDate(review.replyAt)}` : ""}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-200">{review.reply}</p>
+                        </div>
                       ) : null}
                     </div>
                   ))

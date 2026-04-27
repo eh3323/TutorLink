@@ -1,7 +1,9 @@
 import Link from "next/link";
 
 import { Avatar } from "@/components/avatar";
+import { TutorTierBadge } from "@/components/tutor-tier-badge";
 import { formatCurrencyCents, formatRating } from "@/lib/format";
+import type { TutorTier } from "@/lib/tutor-tier";
 import { listTutors, parseTutorSearchParams } from "@/lib/tutors";
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -40,6 +42,7 @@ export default async function TutorsPage({
     minRate: (raw.minRate as string | undefined) ?? "",
     maxRate: (raw.maxRate as string | undefined) ?? "",
     verified: (raw.verified as string | undefined) ?? "",
+    sort: (raw.sort as string | undefined) ?? "tier",
   };
 
   return (
@@ -55,7 +58,7 @@ export default async function TutorsPage({
           </p>
         </section>
 
-        <form className="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-5">
+        <form className="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-6">
           <input
             name="subject"
             defaultValue={filters.subject}
@@ -83,15 +86,26 @@ export default async function TutorsPage({
             placeholder="Max rate (cents)"
             className={inputClass}
           />
+          <select
+            name="verified"
+            defaultValue={filters.verified}
+            className={inputClass}
+          >
+            <option value="">All tutors</option>
+            <option value="true">Verified only</option>
+            <option value="false">Unverified</option>
+          </select>
           <div className="flex gap-2">
             <select
-              name="verified"
-              defaultValue={filters.verified}
+              name="sort"
+              defaultValue={filters.sort}
               className={`${inputClass} flex-1`}
             >
-              <option value="">All tutors</option>
-              <option value="true">Verified only</option>
-              <option value="false">Unverified</option>
+              <option value="tier">Top rated first</option>
+              <option value="rating">Highest rated</option>
+              <option value="rate-asc">Lowest rate</option>
+              <option value="rate-desc">Highest rate</option>
+              <option value="newest">Newest</option>
             </select>
             <button
               type="submit"
@@ -147,11 +161,7 @@ export default async function TutorsPage({
                       : ""}
                   </p>
                 </div>
-                {tutor.verificationStatus === "VERIFIED" ? (
-                  <span className="rounded-full bg-emerald-400/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-200">
-                    Verified
-                  </span>
-                ) : null}
+                <TutorTierBadge tier={tutor.tier as TutorTier} size="xs" />
               </div>
 
               {tutor.tutorProfile.headline ? (

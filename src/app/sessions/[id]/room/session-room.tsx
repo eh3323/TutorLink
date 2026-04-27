@@ -1,10 +1,27 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Avatar } from "@/components/avatar";
-import { formatDateTime, formatRelativeTime } from "@/lib/format";
+import { MathText } from "@/components/math-text";
+import { formatCurrencyCents, formatDateTime, formatRelativeTime } from "@/lib/format";
+
+// heavy panels are loaded only on the client. tldraw + monaco both touch the
+// dom on import, so ssr would crash the build.
+const WhiteboardPanel = dynamic(() => import("./whiteboard-panel"), {
+  ssr: false,
+  loading: () => <PanelSkeleton label="Loading whiteboard…" />,
+});
+const CodePanel = dynamic(() => import("./code-panel"), {
+  ssr: false,
+  loading: () => <PanelSkeleton label="Loading code editor…" />,
+});
+const LiveKitPanel = dynamic(() => import("./livekit-panel"), {
+  ssr: false,
+  loading: () => <PanelSkeleton label="Connecting to room…" />,
+});
 
 type Person = {
   id: string;
@@ -27,10 +44,14 @@ type Props = {
   roomToken: string;
   scheduledAtIso: string;
   durationMinutes: number;
+  agreedRateCents: number | null;
   subjectLabel: string;
+  livekitEnabled: boolean;
   me: Person;
   counterpart: Person;
 };
+
+type Tab = "video" | "whiteboard" | "code";
 
 function fmtRemaining(ms: number) {
   if (ms <= 0) return "0:00";
@@ -42,22 +63,45 @@ function fmtRemaining(ms: number) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+function fmtElapsed(seconds: number) {
+  const total = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  }
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
+function PanelSkeleton({ label }: { label: string }) {
+  return (
+    <div className="flex h-full items-center justify-center text-xs text-slate-400">
+      {label}
+    </div>
+  );
+}
+
 export function SessionRoom({
   sessionId,
   threadId,
   roomToken,
   scheduledAtIso,
   durationMinutes,
+  agreedRateCents,
   subjectLabel,
+  livekitEnabled,
   me,
   counterpart,
 }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [videoOpen, setVideoOpen] = useState(true);
+  const [tab, setTab] = useState<Tab>("video");
+  const [chatOpen, setChatOpen] = useState(true);
+  const [useJitsi, setUseJitsi] = useState(!livekitEnabled);
   const listRef = useRef<HTMLDivElement | null>(null);
   const lastIdRef = useRef<string | null>(null);
 
@@ -66,6 +110,20 @@ export function SessionRoom({
     () => new Date(scheduledAt.getTime() + durationMinutes * 60_000),
     [scheduledAt, durationMinutes],
   );
+
+  // billing meter: count from the moment the session was supposed to start
+  // (or from now if you joined early). once you pass the scheduled end we
+  // keep ticking so over-time is visible to both sides.
+  const meterStart = useMemo(
+    () => Math.max(scheduledAt.getTime(), now - durationMinutes * 60_000),
+    [scheduledAt, durationMinutes, now],
+  );
+  const elapsedSec = Math.max(0, (now - scheduledAt.getTime()) / 1000);
+  const meterAmountCents =
+    agreedRateCents != null
+      ? Math.round((agreedRateCents * elapsedSec) / 3600)
+      : null;
+
   const startsIn = scheduledAt.getTime() - now;
   const endsIn = sessionEnd.getTime() - now;
   const status =
@@ -107,7 +165,7 @@ export function SessionRoom({
         // ignore, try again next tick
       }
     }
-    pull();
+    void pull();
     const id = setInterval(pull, 3000);
     return () => {
       cancelled = true;
@@ -126,7 +184,7 @@ export function SessionRoom({
     const trimmed = body.trim();
     if (!trimmed) return;
     setSending(true);
-    setError(null);
+    setChatError(null);
     try {
       const res = await fetch("/api/messages", {
         method: "POST",
@@ -135,13 +193,13 @@ export function SessionRoom({
       });
       const payload = await res.json();
       if (!res.ok || !payload.ok) {
-        setError(payload?.error?.message ?? "could not send message.");
+        setChatError(payload?.error?.message ?? "could not send message.");
       } else {
         setBody("");
         setMessages((prev) => [...prev, payload.data.message]);
       }
     } catch {
-      setError("network error.");
+      setChatError("network error.");
     } finally {
       setSending(false);
     }
@@ -159,10 +217,16 @@ export function SessionRoom({
     return `https://meet.jit.si/${encodeURIComponent(room)}#userInfo.displayName=%22${displayName}%22&userInfo.email=%22${email}%22&${params.toString()}`;
   }, [sessionId, roomToken, me.fullName, me.email]);
 
+  const tabs: Array<{ id: Tab; label: string }> = [
+    { id: "video", label: "Video" },
+    { id: "whiteboard", label: "Whiteboard" },
+    { id: "code", label: "Code" },
+  ];
+
   return (
     <main className="flex-1">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6">
-        <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <Link
               href={`/sessions/${sessionId}`}
@@ -177,125 +241,187 @@ export function SessionRoom({
               Scheduled for {formatDateTime(scheduledAt)}
             </p>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-300">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
             <span className="rounded-full border border-cyan-400/40 bg-cyan-400/10 px-3 py-1 font-semibold text-cyan-100">
               {status}
             </span>
+            {agreedRateCents != null ? (
+              <span
+                className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 font-semibold text-amber-100"
+                title="Live billing meter — accumulates from the scheduled start"
+              >
+                {fmtElapsed(elapsedSec)} ·{" "}
+                {meterAmountCents != null
+                  ? formatCurrencyCents(Math.max(0, meterAmountCents))
+                  : "$—"}
+              </span>
+            ) : (
+              <span
+                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-300"
+                title="No agreed rate set on this session"
+              >
+                {fmtElapsed(elapsedSec)} elapsed
+              </span>
+            )}
             <button
               type="button"
-              onClick={() => setVideoOpen((v) => !v)}
+              onClick={() => setChatOpen((v) => !v)}
               className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 font-medium text-slate-200 hover:bg-white/10"
             >
-              {videoOpen ? "Hide video" : "Show video"}
+              {chatOpen ? "Hide chat" : "Show chat"}
             </button>
           </div>
         </header>
 
-        <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
-            {videoOpen ? (
-              <iframe
-                key={jitsiSrc}
-                src={jitsiSrc}
-                allow="camera; microphone; fullscreen; speaker; display-capture; autoplay"
-                className="h-[60vh] w-full"
-                style={{ minHeight: 360 }}
-              />
-            ) : (
-              <div className="flex h-[60vh] flex-col items-center justify-center gap-3 text-slate-400">
-                <p>Video paused.</p>
-                <button
-                  type="button"
-                  onClick={() => setVideoOpen(true)}
-                  className="rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950"
-                >
-                  Resume video
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="flex h-[60vh] flex-col rounded-2xl border border-white/10 bg-white/5">
-            <div className="flex items-center gap-3 border-b border-white/10 p-4">
-              <Avatar name={counterpart.fullName} src={counterpart.avatarUrl} size="sm" />
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-white">
-                  {counterpart.fullName}
-                </p>
-                <p className="truncate text-[11px] text-slate-400">
-                  Live chat — auto-refreshes every 3s
-                </p>
-              </div>
-            </div>
-
-            <div
-              ref={listRef}
-              className="flex flex-1 flex-col gap-3 overflow-y-auto p-4"
+        {/* tabs */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-white/10">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`-mb-px border-b-2 px-3 pb-2 pt-1 text-sm font-medium transition ${
+                tab === t.id
+                  ? "border-cyan-300 text-white"
+                  : "border-transparent text-slate-400 hover:text-slate-200"
+              }`}
             >
-              {messages.length === 0 ? (
-                <div className="m-auto text-center text-xs text-slate-400">
-                  No messages yet. Say hi while you wait.
-                </div>
-              ) : (
-                messages.map((m) => {
-                  const mine = m.senderId === me.id;
-                  return (
-                    <div
-                      key={m.id}
-                      className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}
-                    >
-                      {!mine ? (
-                        <Avatar
-                          name={m.sender.fullName}
-                          src={m.sender.avatarUrl ?? null}
-                          size="xs"
-                        />
-                      ) : null}
-                      <div
-                        className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-5 ${
-                          mine ? "bg-cyan-400 text-slate-950" : "bg-white/10 text-slate-100"
-                        }`}
-                      >
-                        <p className="whitespace-pre-wrap break-words">{m.body}</p>
-                        <p
-                          className={`mt-1 text-[10px] ${mine ? "text-slate-800" : "text-slate-400"}`}
-                        >
-                          {formatRelativeTime(m.createdAt)}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+              {t.label}
+            </button>
+          ))}
+          {tab === "video" && livekitEnabled ? (
+            <button
+              type="button"
+              onClick={() => setUseJitsi((v) => !v)}
+              className="ml-auto text-[10px] uppercase tracking-wide text-slate-500 hover:text-slate-200"
+            >
+              {useJitsi ? "Try LiveKit" : "Fall back to Jitsi"}
+            </button>
+          ) : null}
+        </div>
 
-            <form onSubmit={send} className="flex gap-2 border-t border-white/10 p-3">
-              <input
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                placeholder="Message…"
-                maxLength={2000}
-                className="flex-1 rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white focus:border-cyan-300"
-              />
-              <button
-                type="submit"
-                disabled={sending || !body.trim()}
-                className="inline-flex h-10 items-center rounded-lg bg-cyan-300 px-4 text-sm font-semibold text-slate-950 hover:bg-cyan-200 disabled:opacity-60"
-              >
-                {sending ? "…" : "Send"}
-              </button>
-            </form>
-            {error ? (
-              <p className="mx-3 mb-3 rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
-                {error}
-              </p>
-            ) : null}
+        <div
+          className={`grid gap-4 ${chatOpen ? "lg:grid-cols-[2fr_1fr]" : "grid-cols-1"}`}
+        >
+          {/* main canvas */}
+          <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
+            <div className="h-[62vh] min-h-[400px]">
+              {tab === "video" ? (
+                useJitsi || !livekitEnabled ? (
+                  <iframe
+                    key={jitsiSrc}
+                    src={jitsiSrc}
+                    allow="camera; microphone; fullscreen; speaker; display-capture; autoplay"
+                    className="h-full w-full"
+                  />
+                ) : (
+                  <LiveKitPanel
+                    sessionId={sessionId}
+                    onUnavailable={() => setUseJitsi(true)}
+                  />
+                )
+              ) : null}
+              {tab === "whiteboard" ? (
+                <WhiteboardPanel persistenceKey={`tutorlink-wb-${roomToken}`} />
+              ) : null}
+              {tab === "code" ? (
+                <CodePanel
+                  collabRoom={`tutorlink-code-${sessionId}-${roomToken}`}
+                  displayName={me.fullName || me.email || "participant"}
+                />
+              ) : null}
+            </div>
           </div>
+
+          {/* chat side panel */}
+          {chatOpen ? (
+            <div className="flex h-[62vh] flex-col rounded-2xl border border-white/10 bg-white/5">
+              <div className="flex items-center gap-3 border-b border-white/10 p-4">
+                <Avatar name={counterpart.fullName} src={counterpart.avatarUrl} size="sm" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-white">
+                    {counterpart.fullName}
+                  </p>
+                  <p className="truncate text-[11px] text-slate-400">
+                    Live chat — supports $LaTeX$ and $$blocks$$
+                  </p>
+                </div>
+              </div>
+
+              <div
+                ref={listRef}
+                className="flex flex-1 flex-col gap-3 overflow-y-auto p-4"
+              >
+                {messages.length === 0 ? (
+                  <div className="m-auto text-center text-xs text-slate-400">
+                    No messages yet. Say hi while you wait.
+                  </div>
+                ) : (
+                  messages.map((m) => {
+                    const mine = m.senderId === me.id;
+                    return (
+                      <div
+                        key={m.id}
+                        className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}
+                      >
+                        {!mine ? (
+                          <Avatar
+                            name={m.sender.fullName}
+                            src={m.sender.avatarUrl ?? null}
+                            size="xs"
+                          />
+                        ) : null}
+                        <div
+                          className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-5 ${
+                            mine ? "bg-cyan-400 text-slate-950" : "bg-white/10 text-slate-100"
+                          }`}
+                        >
+                          <MathText
+                            className="whitespace-pre-wrap break-words"
+                            text={m.body}
+                          />
+                          <p
+                            className={`mt-1 text-[10px] ${mine ? "text-slate-800" : "text-slate-400"}`}
+                          >
+                            {formatRelativeTime(m.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <form onSubmit={send} className="flex gap-2 border-t border-white/10 p-3">
+                <input
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  placeholder="Message…"
+                  maxLength={2000}
+                  className="flex-1 rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white focus:border-cyan-300"
+                />
+                <button
+                  type="submit"
+                  disabled={sending || !body.trim()}
+                  className="inline-flex h-10 items-center rounded-lg bg-cyan-300 px-4 text-sm font-semibold text-slate-950 hover:bg-cyan-200 disabled:opacity-60"
+                >
+                  {sending ? "…" : "Send"}
+                </button>
+              </form>
+              {chatError ? (
+                <p className="mx-3 mb-3 rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
+                  {chatError}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <p className="text-center text-[11px] text-slate-500">
-          Video powered by Jitsi Meet. The first person to enter creates the
-          room — share this page with no one but the other participant.
+          {livekitEnabled && !useJitsi
+            ? "Private LiveKit room — only invited participants can join."
+            : "Public Jitsi fallback. For real privacy, set up LiveKit."}{" "}
+          Whiteboard saves locally per device. Code edits sync peer-to-peer.
         </p>
       </div>
     </main>

@@ -27,10 +27,24 @@ type ReviewRecord = Prisma.ReviewGetPayload<{
   include: typeof reviewInclude;
 }>;
 
+type ReviewCriteria = {
+  punctuality?: number | null;
+  preparation?: number | null;
+  communication?: number | null;
+  helpfulness?: number | null; // tutee → tutor only
+  respectful?: number | null;  // tutor → tutee only
+};
+
 type CreateReviewInput = {
   sessionId: string;
   rating: number;
   comment?: string | null;
+  criteria?: ReviewCriteria | null;
+};
+
+type UpdateReplyInput = {
+  reviewId: string;
+  reply: string | null;
 };
 
 type ReviewSearchParams = {
@@ -69,6 +83,17 @@ export function formatReview(review: ReviewRecord) {
     comment: review.comment,
     createdAt: review.createdAt,
     updatedAt: review.updatedAt,
+    direction: review.direction,
+    isVerified: review.isVerified,
+    criteria: {
+      punctuality: review.ratingPunctuality,
+      preparation: review.ratingPreparation,
+      communication: review.ratingCommunication,
+      helpfulness: review.ratingHelpfulness,
+      respectful: review.ratingRespectful,
+    },
+    reply: review.reply,
+    replyAt: review.replyAt,
     author: formatParticipant(review.author),
     reviewee: formatParticipant(review.reviewee),
     session: {
@@ -175,6 +200,24 @@ export async function createReview(sessionUser: SessionUser, input: CreateReview
     );
   }
 
+  const direction = isTutor ? "TUTOR_TO_TUTEE" : "TUTEE_TO_TUTOR";
+  const c = input.criteria ?? {};
+  // sanity-check criteria: if present, must be 1-5; ignore the wrong-side ones
+  function clamp(v: number | null | undefined): number | null {
+    if (v == null) return null;
+    if (!Number.isFinite(v)) return null;
+    const n = Math.round(v);
+    if (n < 1 || n > 5) return null;
+    return n;
+  }
+  const ratingPunctuality = clamp(c.punctuality);
+  const ratingPreparation = clamp(c.preparation);
+  const ratingCommunication = clamp(c.communication);
+  const ratingHelpfulness =
+    direction === "TUTEE_TO_TUTOR" ? clamp(c.helpfulness) : null;
+  const ratingRespectful =
+    direction === "TUTOR_TO_TUTEE" ? clamp(c.respectful) : null;
+
   const review = await db.review.create({
     data: {
       sessionId: session.id,
@@ -182,11 +225,65 @@ export async function createReview(sessionUser: SessionUser, input: CreateReview
       revieweeId,
       rating: input.rating,
       comment: input.comment ?? null,
+      direction,
+      isVerified: true,
+      ratingPunctuality,
+      ratingPreparation,
+      ratingCommunication,
+      ratingHelpfulness,
+      ratingRespectful,
     },
     include: reviewInclude,
   });
 
   return formatReview(review);
+}
+
+export async function setReviewReply(
+  sessionUser: SessionUser,
+  input: UpdateReplyInput,
+) {
+  const review = await db.review.findUnique({
+    where: { id: input.reviewId },
+    include: reviewInclude,
+  });
+  if (!review) {
+    throw new ApiError(404, "REVIEW_NOT_FOUND", "Review was not found.");
+  }
+  if (review.revieweeId !== sessionUser.id) {
+    throw new ApiError(
+      403,
+      "FORBIDDEN",
+      "Only the person being reviewed can reply.",
+    );
+  }
+  if (review.reply && input.reply !== null) {
+    // already replied; can only clear it (admin action) or keep as-is
+    throw new ApiError(
+      409,
+      "REPLY_ALREADY_EXISTS",
+      "You already replied to this review.",
+    );
+  }
+
+  const trimmed = input.reply?.trim() || null;
+  if (trimmed && trimmed.length > 1000) {
+    throw new ApiError(
+      400,
+      "INVALID_INPUT",
+      "Reply must be 1000 characters or fewer.",
+    );
+  }
+
+  const updated = await db.review.update({
+    where: { id: review.id },
+    data: {
+      reply: trimmed,
+      replyAt: trimmed ? new Date() : null,
+    },
+    include: reviewInclude,
+  });
+  return formatReview(updated);
 }
 
 export async function listReviews(searchParams: ReviewSearchParams, sessionUserId?: string) {

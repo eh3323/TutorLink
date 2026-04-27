@@ -8,7 +8,40 @@ type ReviewPostBody = {
   sessionId?: unknown;
   rating?: unknown;
   comment?: unknown;
+  criteria?: unknown;
 };
+
+type ParsedCriteria = {
+  punctuality: number | null;
+  preparation: number | null;
+  communication: number | null;
+  helpfulness: number | null;
+  respectful: number | null;
+};
+
+function parseOptionalRating(value: unknown, field: string): number | null {
+  if (value == null || value === "") return null;
+  const n = parseNumber(value, {
+    field,
+    integer: true,
+    min: 1,
+    max: 5,
+  });
+  return n ?? null;
+}
+
+function parseCriteria(value: unknown): ParsedCriteria | null {
+  if (value == null) return null;
+  if (typeof value !== "object" || Array.isArray(value)) return null;
+  const obj = value as Record<string, unknown>;
+  return {
+    punctuality: parseOptionalRating(obj.punctuality, "criteria.punctuality"),
+    preparation: parseOptionalRating(obj.preparation, "criteria.preparation"),
+    communication: parseOptionalRating(obj.communication, "criteria.communication"),
+    helpfulness: parseOptionalRating(obj.helpfulness, "criteria.helpfulness"),
+    respectful: parseOptionalRating(obj.respectful, "criteria.respectful"),
+  };
+}
 
 function parseNullableComment(value: unknown) {
   if (value === undefined) {
@@ -47,6 +80,7 @@ export async function POST(request: Request) {
     });
 
     const comment = parseNullableComment(body.comment);
+    const criteria = parseCriteria(body.criteria);
 
     if (!sessionId || rating == null) {
       throw new ApiError(400, "INVALID_INPUT", "Missing required review fields.");
@@ -57,6 +91,7 @@ export async function POST(request: Request) {
         sessionId,
         rating,
         comment,
+        criteria,
       }),
     );
   } catch (error) {

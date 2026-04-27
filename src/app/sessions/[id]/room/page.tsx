@@ -105,6 +105,12 @@ export default async function SessionRoomPage({
   const me = detail.viewerRole === "TUTOR" ? detail.participants.tutor : detail.participants.tutee;
   const counterpart = detail.counterpart;
 
+  const livekitEnabled = Boolean(
+    process.env.LIVEKIT_URL &&
+      process.env.LIVEKIT_API_KEY &&
+      process.env.LIVEKIT_API_SECRET,
+  );
+
   return (
     <SessionRoom
       sessionId={detail.id}
@@ -112,7 +118,9 @@ export default async function SessionRoomPage({
       roomToken={detail.roomToken}
       scheduledAtIso={scheduledAt.toISOString()}
       durationMinutes={detail.durationMinutes}
+      agreedRateCents={detail.agreedRateCents ?? null}
       subjectLabel={`${detail.subject.department} ${detail.subject.code} · ${detail.subject.name}`}
+      livekitEnabled={livekitEnabled}
       me={{
         id: me.id,
         fullName: me.fullName,

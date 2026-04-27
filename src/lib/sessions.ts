@@ -139,6 +139,13 @@ function formatSession(session: SessionRecord) {
     cancelledAt: session.cancelledAt,
     cancellationReason: session.cancellationReason,
     roomToken: session.roomToken,
+    recordingConsentTutorAt: session.recordingConsentTutorAt,
+    recordingConsentTuteeAt: session.recordingConsentTuteeAt,
+    recordingStartedAt: session.recordingStartedAt,
+    recordingEndedAt: session.recordingEndedAt,
+    recordingUrl: session.recordingUrl,
+    summary: session.summary,
+    summaryGeneratedAt: session.summaryGeneratedAt,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
     participants: {
@@ -328,12 +335,26 @@ export async function getSessionDetailForUser(sessionUser: SessionUser, sessionI
       rating: review.rating,
       comment: review.comment,
       createdAt: review.createdAt,
+      direction: review.direction,
+      isVerified: review.isVerified,
+      reply: review.reply,
+      replyAt: review.replyAt,
+      criteria: {
+        punctuality: review.ratingPunctuality,
+        preparation: review.ratingPreparation,
+        communication: review.ratingCommunication,
+        helpfulness: review.ratingHelpfulness,
+        respectful: review.ratingRespectful,
+      },
       author: {
         id: review.author.id,
         fullName: review.author.profile?.fullName ?? review.author.email,
         avatarUrl: review.author.profile?.avatarUrl ?? null,
       },
       authorIsMe: review.authorId === sessionUser.id,
+      revieweeId: review.revieweeId,
+      canReply:
+        review.revieweeId === sessionUser.id && review.reply == null,
     })),
   };
 }
