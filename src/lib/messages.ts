@@ -339,6 +339,10 @@ export async function getThreadDetailForUser(sessionUser: SessionUser, threadId:
 
   ensureThreadParticipantRole(sessionUser, thread);
 
+  // opening the thread counts as reading it; bump the right side's pointer so
+  // the navbar bell can stop yelling at this user
+  await markThreadRead(sessionUser, thread.id, thread.tutorId, thread.tuteeId);
+
   return {
     thread: formatThread({
       ...thread,
@@ -346,6 +350,43 @@ export async function getThreadDetailForUser(sessionUser: SessionUser, threadId:
     }),
     messages: thread.messages.map(formatMessage),
   };
+}
+
+export async function markThreadReadForUser(
+  sessionUser: SessionUser,
+  threadId: string,
+) {
+  const thread = await db.messageThread.findUnique({
+    where: { id: threadId },
+    select: { id: true, tutorId: true, tuteeId: true },
+  });
+  if (!thread) {
+    throw new ApiError(404, "THREAD_NOT_FOUND", "Message thread was not found.");
+  }
+  if (sessionUser.id !== thread.tutorId && sessionUser.id !== thread.tuteeId) {
+    throw new ApiError(403, "FORBIDDEN", "You are not a participant in this thread.");
+  }
+  await markThreadRead(sessionUser, thread.id, thread.tutorId, thread.tuteeId);
+}
+
+async function markThreadRead(
+  sessionUser: SessionUser,
+  threadId: string,
+  tutorId: string,
+  tuteeId: string,
+) {
+  const now = new Date();
+  if (sessionUser.id === tutorId) {
+    await db.messageThread.update({
+      where: { id: threadId },
+      data: { tutorLastReadAt: now },
+    });
+  } else if (sessionUser.id === tuteeId) {
+    await db.messageThread.update({
+      where: { id: threadId },
+      data: { tuteeLastReadAt: now },
+    });
+  }
 }
 
 const MESSAGE_LIST_DEFAULT = 50;

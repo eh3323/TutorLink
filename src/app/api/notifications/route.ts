@@ -17,6 +17,8 @@ export async function GET() {
         updatedAt: true,
         tutorId: true,
         tuteeId: true,
+        tutorLastReadAt: true,
+        tuteeLastReadAt: true,
         messages: {
           orderBy: { createdAt: "desc" },
           take: 1,
@@ -33,7 +35,15 @@ export async function GET() {
 
     const unreadThreads = threads.filter((thread) => {
       const latest = thread.messages[0];
-      return latest && latest.senderId !== sessionUser.id;
+      if (!latest) return false;
+      // your own messages never count as unread
+      if (latest.senderId === sessionUser.id) return false;
+      const myReadAt =
+        thread.tutorId === sessionUser.id
+          ? thread.tutorLastReadAt
+          : thread.tuteeLastReadAt;
+      // never opened the thread, or opened it before this latest message landed
+      return !myReadAt || latest.createdAt > myReadAt;
     });
 
     const recent = unreadThreads.slice(0, 5).map((thread) => {

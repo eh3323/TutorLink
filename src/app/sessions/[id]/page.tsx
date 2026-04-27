@@ -10,7 +10,11 @@ import {
   formatMode,
   formatStatusLabel,
 } from "@/lib/format";
-import { getSessionDetailForUser } from "@/lib/sessions";
+import {
+  getSessionDetailForUser,
+  listSessionAttachments,
+} from "@/lib/sessions";
+import { SessionAttachments } from "./session-attachments";
 import { SessionControls } from "./session-controls";
 import { ReviewForm } from "./review-form";
 
@@ -38,6 +42,13 @@ export default async function SessionDetailPage({
   const canReview =
     detail.status === "COMPLETED" &&
     !detail.reviews.some((r) => r.authorIsMe);
+
+  // attachments only make sense for online sessions; skip the db hit otherwise
+  const isOnline = detail.mode === "ONLINE";
+  const attachments = isOnline
+    ? await listSessionAttachments(session.user, detail.id)
+    : [];
+  const canUpload = isOnline && detail.status !== "CANCELLED";
 
   return (
     <main className="flex-1">
@@ -127,6 +138,20 @@ export default async function SessionDetailPage({
             </p>
             <p className="mt-2 whitespace-pre-wrap">{detail.cancellationReason}</p>
           </section>
+        ) : null}
+
+        {isOnline ? (
+          <SessionAttachments
+            sessionId={detail.id}
+            initial={attachments.map((a) => ({
+              ...a,
+              createdAt:
+                a.createdAt instanceof Date
+                  ? a.createdAt.toISOString()
+                  : a.createdAt,
+            }))}
+            canUpload={canUpload}
+          />
         ) : null}
 
         <section className="rounded-2xl border border-white/10 bg-white/5 p-6">

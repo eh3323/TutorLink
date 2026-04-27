@@ -31,10 +31,11 @@ model User {
   tutorThreads          MessageThread[]   @relation("TutorThreads")
   tuteeThreads          MessageThread[]   @relation("TuteeThreads")
   sentMessages          Message[]
-  tutorSessions         Session[]         @relation("TutorSessions")
-  tuteeSessions         Session[]         @relation("TuteeSessions")
-  writtenReviews        Review[]          @relation("WrittenReviews")
-  receivedReviews       Review[]          @relation("ReceivedReviews")
+  tutorSessions         Session[]           @relation("TutorSessions")
+  tuteeSessions         Session[]           @relation("TuteeSessions")
+  writtenReviews        Review[]            @relation("WrittenReviews")
+  receivedReviews       Review[]            @relation("ReceivedReviews")
+  uploadedAttachments   SessionAttachment[] @relation("UploadedSessionAttachments")
 }
 
 model Profile {
@@ -144,17 +145,19 @@ model RequestApplication {
 }
 
 model MessageThread {
-  id        String           @id @default(cuid())
-  tutorId   String
-  tuteeId   String
-  requestId String?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  tutor     User             @relation("TutorThreads", fields: [tutorId], references: [id], onDelete: Cascade)
-  tutee     User             @relation("TuteeThreads", fields: [tuteeId], references: [id], onDelete: Cascade)
-  request   TutoringRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
-  messages  Message[]
-  sessions  Session[]
+  id              String           @id @default(cuid())
+  tutorId         String
+  tuteeId         String
+  requestId       String?
+  tutorLastReadAt DateTime?
+  tuteeLastReadAt DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  tutor           User             @relation("TutorThreads", fields: [tutorId], references: [id], onDelete: Cascade)
+  tutee           User             @relation("TuteeThreads", fields: [tuteeId], references: [id], onDelete: Cascade)
+  request         TutoringRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  messages        Message[]
+  sessions        Session[]
 }
 
 model Message {
@@ -188,12 +191,28 @@ model Session {
   roomToken          String           @unique @default(cuid())
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
-  tutor              User             @relation("TutorSessions", fields: [tutorId], references: [id], onDelete: Cascade)
-  tutee              User             @relation("TuteeSessions", fields: [tuteeId], references: [id], onDelete: Cascade)
-  subject            Subject          @relation(fields: [subjectId], references: [id], onDelete: Restrict)
-  thread             MessageThread?   @relation(fields: [threadId], references: [id], onDelete: SetNull)
-  request            TutoringRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  tutor              User                @relation("TutorSessions", fields: [tutorId], references: [id], onDelete: Cascade)
+  tutee              User                @relation("TuteeSessions", fields: [tuteeId], references: [id], onDelete: Cascade)
+  subject            Subject             @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  thread             MessageThread?      @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  request            TutoringRequest?    @relation(fields: [requestId], references: [id], onDelete: SetNull)
   reviews            Review[]
+  attachments        SessionAttachment[]
+}
+
+model SessionAttachment {
+  id         String   @id @default(cuid())
+  sessionId  String
+  uploaderId String
+  name       String
+  mimeType   String
+  sizeBytes  Int
+  url        String
+  createdAt  DateTime @default(now())
+  session    Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  uploader   User     @relation("UploadedSessionAttachments", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
 }
 
 model Review {

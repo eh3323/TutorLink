@@ -518,6 +518,205 @@ export function isSessionLive(scheduledAt: Date, durationMinutes: number) {
   return now >= start && now <= end;
 }
 
+// ---- session attachments ----
+
+// online sessions can share course materials/handouts. in-person doesn't need
+// it (people just hand stuff over) and we want a clean separation so that
+// attachment ui shows up only for online sessions.
+export const SESSION_ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024; // 25mb cap
+export const SESSION_ATTACHMENT_ALLOWED: Record<string, string> = {
+  "application/pdf": ".pdf",
+  "application/msword": ".doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+  "application/vnd.ms-powerpoint": ".ppt",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+  "application/vnd.ms-excel": ".xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+  "application/zip": ".zip",
+  "application/x-zip-compressed": ".zip",
+  "text/plain": ".txt",
+  "text/markdown": ".md",
+  "text/csv": ".csv",
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/jpg": ".jpg",
+  "image/webp": ".webp",
+  "image/gif": ".gif",
+};
+
+export type FormattedSessionAttachment = {
+  id: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: Date;
+  uploader: {
+    id: string;
+    fullName: string;
+    avatarUrl: string | null;
+  };
+  uploaderIsMe: boolean;
+  canDelete: boolean;
+};
+
+const attachmentInclude = Prisma.validator<Prisma.SessionAttachmentInclude>()({
+  uploader: { include: { profile: true } },
+});
+
+type AttachmentRecord = Prisma.SessionAttachmentGetPayload<{
+  include: typeof attachmentInclude;
+}>;
+
+function formatAttachment(
+  attachment: AttachmentRecord,
+  viewer: SessionUser,
+): FormattedSessionAttachment {
+  const uploader = attachment.uploader;
+  const isMine = uploader.id === viewer.id;
+  return {
+    id: attachment.id,
+    name: attachment.name,
+    mimeType: attachment.mimeType,
+    sizeBytes: attachment.sizeBytes,
+    createdAt: attachment.createdAt,
+    uploader: {
+      id: uploader.id,
+      fullName: uploader.profile?.fullName ?? uploader.email,
+      avatarUrl: uploader.profile?.avatarUrl ?? null,
+    },
+    uploaderIsMe: isMine,
+    canDelete: isMine || viewer.isAdmin === true,
+  };
+}
+
+async function loadSessionForAttachments(
+  sessionUser: SessionUser,
+  sessionId: string,
+) {
+  const session = await db.session.findUnique({
+    where: { id: sessionId },
+    select: {
+      id: true,
+      tutorId: true,
+      tuteeId: true,
+      mode: true,
+      status: true,
+    },
+  });
+  if (!session) {
+    throw new ApiError(404, "SESSION_NOT_FOUND", "Session was not found.");
+  }
+  assertParticipantAccess(sessionUser, session.tutorId, session.tuteeId);
+  return session;
+}
+
+export async function listSessionAttachments(
+  sessionUser: SessionUser,
+  sessionId: string,
+): Promise<FormattedSessionAttachment[]> {
+  await loadSessionForAttachments(sessionUser, sessionId);
+  const rows = await db.sessionAttachment.findMany({
+    where: { sessionId },
+    include: attachmentInclude,
+    orderBy: { createdAt: "asc" },
+  });
+  return rows.map((row) => formatAttachment(row, sessionUser));
+}
+
+export async function addSessionAttachment(
+  sessionUser: SessionUser,
+  sessionId: string,
+  attachment: {
+    name: string;
+    mimeType: string;
+    sizeBytes: number;
+    url: string;
+  },
+): Promise<FormattedSessionAttachment> {
+  const session = await loadSessionForAttachments(sessionUser, sessionId);
+
+  if (session.mode !== DeliveryMode.ONLINE) {
+    throw new ApiError(
+      400,
+      "ATTACHMENTS_ONLINE_ONLY",
+      "Only online sessions support uploaded materials.",
+    );
+  }
+  if (
+    session.status === SessionStatus.CANCELLED
+  ) {
+    throw new ApiError(
+      400,
+      "INVALID_STATE",
+      "Cannot upload to a cancelled session.",
+    );
+  }
+
+  const created = await db.sessionAttachment.create({
+    data: {
+      sessionId,
+      uploaderId: sessionUser.id,
+      name: attachment.name,
+      mimeType: attachment.mimeType,
+      sizeBytes: attachment.sizeBytes,
+      url: attachment.url,
+    },
+    include: attachmentInclude,
+  });
+
+  // light system note so the other side sees something landed in the thread
+  const sessionRow = await db.session.findUnique({
+    where: { id: sessionId },
+    select: { threadId: true },
+  });
+  if (sessionRow?.threadId) {
+    await postThreadNote(
+      sessionRow.threadId,
+      sessionUser.id,
+      `shared a file in the session — ${attachment.name}`,
+    );
+  }
+
+  return formatAttachment(created, sessionUser);
+}
+
+export async function getSessionAttachmentForDownload(
+  sessionUser: SessionUser,
+  sessionId: string,
+  attachmentId: string,
+) {
+  await loadSessionForAttachments(sessionUser, sessionId);
+  const row = await db.sessionAttachment.findUnique({
+    where: { id: attachmentId },
+    select: { id: true, sessionId: true, name: true, mimeType: true, url: true },
+  });
+  if (!row || row.sessionId !== sessionId) {
+    throw new ApiError(404, "ATTACHMENT_NOT_FOUND", "Attachment was not found.");
+  }
+  return row;
+}
+
+export async function removeSessionAttachment(
+  sessionUser: SessionUser,
+  sessionId: string,
+  attachmentId: string,
+) {
+  await loadSessionForAttachments(sessionUser, sessionId);
+  const row = await db.sessionAttachment.findUnique({
+    where: { id: attachmentId },
+    select: { id: true, sessionId: true, uploaderId: true, url: true, name: true },
+  });
+  if (!row || row.sessionId !== sessionId) {
+    throw new ApiError(404, "ATTACHMENT_NOT_FOUND", "Attachment was not found.");
+  }
+  const isMine = row.uploaderId === sessionUser.id;
+  if (!isMine && sessionUser.isAdmin !== true) {
+    throw new ApiError(403, "FORBIDDEN", "Only the uploader can delete this file.");
+  }
+  await db.sessionAttachment.delete({ where: { id: row.id } });
+  return { id: row.id, url: row.url, name: row.name };
+}
+
 export function buildIcs(session: {
   id: string;
   scheduledAt: Date;
