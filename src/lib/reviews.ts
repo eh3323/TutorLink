@@ -1,7 +1,8 @@
-import { Prisma, SessionStatus } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import { ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
+import { SessionStatus } from "@/lib/enums";
 import { SessionUser } from "@/lib/permissions";
 
 const reviewInclude = Prisma.validator<Prisma.ReviewInclude>()({

@@ -1,7 +1,8 @@
-import { DeliveryMode, Prisma, Role, SessionStatus } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import { ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
+import { DeliveryMode, Role, SessionStatus } from "@/lib/enums";
 import { canActAsTutee, canActAsTutor, SessionUser } from "@/lib/permissions";
 
 const sessionInclude = Prisma.validator<Prisma.SessionInclude>()({
@@ -60,13 +61,7 @@ type UpdateSessionInput = {
   notes?: string | null;
 };
 
-type SessionSearchParams = {
-  mine?: "all" | "tutor" | "tutee";
-  status?: SessionStatus;
-  mode?: DeliveryMode;
-};
-
-const TRANSITIONS: Record<SessionStatus, SessionStatus[]> = {
+const TRANSITIONS: Record<string, string[]> = {
   PENDING: [SessionStatus.PENDING, SessionStatus.CONFIRMED, SessionStatus.CANCELLED],
   CONFIRMED: [
     SessionStatus.CONFIRMED,
@@ -77,11 +72,11 @@ const TRANSITIONS: Record<SessionStatus, SessionStatus[]> = {
   CANCELLED: [SessionStatus.CANCELLED],
 };
 
-function hasTutorRole(role: Role | null) {
+function hasTutorRole(role: string | null) {
   return role === Role.TUTOR || role === Role.BOTH;
 }
 
-function hasTuteeRole(role: Role | null) {
+function hasTuteeRole(role: string | null) {
   return role === Role.TUTEE || role === Role.BOTH;
 }
 
@@ -136,58 +131,6 @@ function assertParticipantAccess(sessionUser: SessionUser, tutorId: string, tute
   }
 }
 
-export function parseSessionSearchParams(searchParams: URLSearchParams): SessionSearchParams {
-  const mineRaw = searchParams.get("mine");
-  const statusRaw = searchParams.get("status");
-  const modeRaw = searchParams.get("mode");
-
-  let mine: SessionSearchParams["mine"];
-  if (mineRaw) {
-    if (mineRaw !== "all" && mineRaw !== "tutor" && mineRaw !== "tutee") {
-      throw new ApiError(400, "INVALID_INPUT", "mine must be all, tutor, or tutee.");
-    }
-
-    mine = mineRaw;
-  }
-
-  let status: SessionStatus | undefined;
-  if (statusRaw) {
-    if (
-      statusRaw !== SessionStatus.PENDING &&
-      statusRaw !== SessionStatus.CONFIRMED &&
-      statusRaw !== SessionStatus.COMPLETED &&
-      statusRaw !== SessionStatus.CANCELLED
-    ) {
-      throw new ApiError(
-        400,
-        "INVALID_INPUT",
-        "status must be PENDING, CONFIRMED, COMPLETED, or CANCELLED.",
-      );
-    }
-
-    status = statusRaw;
-  }
-
-  let mode: DeliveryMode | undefined;
-  if (modeRaw) {
-    if (modeRaw !== DeliveryMode.ONLINE && modeRaw !== DeliveryMode.IN_PERSON) {
-      throw new ApiError(
-        400,
-        "INVALID_INPUT",
-        "mode must be ONLINE or IN_PERSON.",
-      );
-    }
-
-    mode = modeRaw;
-  }
-
-  return {
-    mine,
-    status,
-    mode,
-  };
-}
-
 function formatSession(session: SessionRecord) {
   return {
     id: session.id,
@@ -236,8 +179,9 @@ function formatSession(session: SessionRecord) {
   };
 }
 
-function ensureAllowedTransition(current: SessionStatus, next: SessionStatus) {
-  if (!TRANSITIONS[current].includes(next)) {
+function ensureAllowedTransition(current: string, next: string) {
+  const allowed = TRANSITIONS[current];
+  if (!allowed || !allowed.includes(next)) {
     throw new ApiError(
       400,
       "INVALID_SESSION_STATUS_TRANSITION",
@@ -369,45 +313,41 @@ export async function createSession(sessionUser: SessionUser, input: CreateSessi
   return formatSession(createdSession);
 }
 
-export async function listSessions(sessionUser: SessionUser, filters: SessionSearchParams) {
+export async function listSessionsForUser(sessionUser: SessionUser) {
   const sessions = await db.session.findMany({
     where: {
-      OR: [
-        ...(filters.mine === "tutor"
-          ? [{ tutorId: sessionUser.id }]
-          : filters.mine === "tutee"
-            ? [{ tuteeId: sessionUser.id }]
-            : [{ tutorId: sessionUser.id }, { tuteeId: sessionUser.id }]),
-      ],
-      ...(filters.status ? { status: filters.status } : {}),
-      ...(filters.mode ? { mode: filters.mode } : {}),
+      OR: [{ tutorId: sessionUser.id }, { tuteeId: sessionUser.id }],
     },
     include: sessionInclude,
-    orderBy: [
-      {
-        scheduledAt: "asc",
-      },
-      {
-        createdAt: "desc",
-      },
-    ],
+    orderBy: { scheduledAt: "desc" },
   });
 
-  return {
-    sessions: sessions.map(formatSession),
-    filters: {
-      mine: filters.mine ?? "all",
-      status: filters.status ?? null,
-      mode: filters.mode ?? null,
-    },
-    total: sessions.length,
-  };
+  return sessions.map((session) => {
+    const base = formatSession(session);
+    const viewerRole = session.tutorId === sessionUser.id ? "TUTOR" : "TUTEE";
+    const counterpart =
+      viewerRole === "TUTOR" ? base.participants.tutee : base.participants.tutor;
+    return {
+      ...base,
+      viewerRole,
+      counterpart,
+    };
+  });
 }
 
-export async function getSessionDetail(sessionUser: SessionUser, sessionId: string) {
+export async function getSessionDetailForUser(sessionUser: SessionUser, sessionId: string) {
   const session = await db.session.findUnique({
     where: { id: sessionId },
-    include: sessionInclude,
+    include: {
+      ...sessionInclude,
+      reviews: {
+        include: {
+          author: {
+            include: { profile: true },
+          },
+        },
+      },
+    },
   });
 
   if (!session) {
@@ -416,7 +356,28 @@ export async function getSessionDetail(sessionUser: SessionUser, sessionId: stri
 
   assertParticipantAccess(sessionUser, session.tutorId, session.tuteeId);
 
-  return formatSession(session);
+  const base = formatSession(session);
+  const viewerRole = session.tutorId === sessionUser.id ? "TUTOR" : "TUTEE";
+  const counterpart =
+    viewerRole === "TUTOR" ? base.participants.tutee : base.participants.tutor;
+
+  return {
+    ...base,
+    viewerRole,
+    counterpart,
+    reviews: session.reviews.map((review) => ({
+      id: review.id,
+      rating: review.rating,
+      comment: review.comment,
+      createdAt: review.createdAt,
+      author: {
+        id: review.author.id,
+        fullName: review.author.profile?.fullName ?? review.author.email,
+        avatarUrl: review.author.profile?.avatarUrl ?? null,
+      },
+      authorIsMe: review.authorId === sessionUser.id,
+    })),
+  };
 }
 
 export async function updateSession(

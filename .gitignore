@@ -31,7 +31,15 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# local sqlite database
+/prisma/dev.db
+/prisma/dev.db-journal
 
 # vercel
 .vercel
@@ -39,3 +47,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# user uploaded avatars (keep folder via .gitkeep)
+/public/avatars/*
+!/public/avatars/.gitkeep

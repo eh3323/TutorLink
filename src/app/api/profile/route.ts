@@ -1,7 +1,6 @@
-import { Role } from "@prisma/client";
-
 import { ApiError, apiOk, handleRouteError, readJsonBody } from "@/lib/api";
 import { db } from "@/lib/db";
+import { Role } from "@/lib/enums";
 import { canActAsTutee, canActAsTutor, requireSessionUser } from "@/lib/permissions";
 import { getCurrentUserProfileData } from "@/lib/profile";
 import { parseBoolean, parseNumber, parseString, requireObject } from "@/lib/validation";

@@ -1,86 +1,113 @@
 # TutorLink
 
-TutorLink is a peer-to-peer tutoring marketplace designed for university communities, starting with NYU. The platform helps students find approachable academic support by connecting tutees with qualified peer tutors from their own school.
+TutorLink is a peer-to-peer tutoring marketplace for the NYU community. Students sign in with their `@nyu.edu` email, set up a tutor or tutee profile, and then browse, message, book, and review tutoring sessions inside the app.
 
-This repository is the web implementation workspace for the NYU CS Design Project.
+This repo is the full-stack web implementation for the NYU CS Design Project.
 
-## Current Tech Stack
+## Feature status (MVP)
 
-- Next.js
-- TypeScript
-- Tailwind CSS v4
-- PostgreSQL
-- Prisma
-- NextAuth or equivalent auth layer
+- [x] NYU email-based sign-up and login (credentials-based, dev-friendly)
+- [x] Tutor and tutee profiles with role switching (`TUTOR` / `TUTEE` / `BOTH`)
+- [x] Tutor browse with subject, mode, rate, and verification filters
+- [x] Tutor detail page with subjects, reviews, and a one-click message button
+- [x] Tutee request board with posting flow
+- [x] In-app direct messaging with threads
+- [x] Session booking from inside a thread, with status transitions (pending → confirmed → completed / cancelled)
+- [x] Review + rating flow for completed sessions
+- [x] Protected dashboard with upcoming sessions, recent messages, and profile summary
 
-## Local Setup
+## Tech stack
 
-1. Install dependencies:
+- **Framework**: Next.js 16 (App Router, webpack)
+- **Language**: TypeScript
+- **UI**: Tailwind CSS v4
+- **Auth**: NextAuth (credentials provider)
+- **Database**: SQLite (default) via Prisma
+- **ORM**: Prisma 6
+
+> The schema is written to be Postgres-compatible (strings are used instead of native enums). To deploy on Postgres, change the Prisma datasource provider back to `postgresql`, re-run migrations, and update `DATABASE_URL`.
+
+## Local setup
 
 ```bash
+# 1. install deps
 npm install
-```
 
-2. Start the development server:
+# 2. copy env file and create the local db
+cp .env.example .env
+npx prisma migrate deploy   # or: npx prisma migrate dev
 
-```bash
+# 3. load demo tutors, tutees, requests, and one completed session+review
+npm run prisma:seed
+
+# 4. run the dev server
 npm run dev
 ```
 
-3. Open `http://localhost:3000`
+Open `http://localhost:3000` and sign in with any `@nyu.edu` email. Useful demo accounts created by the seed script:
 
-## Planned Project Structure
+| Email | Role | Notes |
+| --- | --- | --- |
+| `ava.chen@nyu.edu` | Tutor | Verified, already has a completed review |
+| `liam.park@nyu.edu` | Tutor | Math tutor |
+| `sofia.gomez@nyu.edu` | Tutor | Econ tutor, online only |
+| `maya.singh@nyu.edu` | Tutee | Has an open CSCI UA 102 request |
+| `daniel.cho@nyu.edu` | Tutee | Has an open ECON UA 1 request |
 
-- `src/app/` - App Router pages and layouts
-- `src/components/` - shared UI and feature components
-- `src/lib/` - shared utilities, DB clients, auth helpers
-- `prisma/` - Prisma schema, migrations, and seed files
+On first sign-in we create the user, the profile, and the correct tutor/tutee profile shell based on the role you pick.
 
-## Project Overview
+## Project structure
 
-TutorLink is intended to support:
+```
+prisma/
+  schema.prisma          Prisma data model
+  migrations/            SQL migrations
+  seed.ts                Demo seed data
 
-- university email-based registration and authentication
-- separate tutor and tutee profiles
-- tutoring request creation and management
-- a searchable marketplace for tutors
-- internal messaging between users
-- session scheduling
-- ratings and reviews
-- optional tutor verification through student-submitted course records
+src/
+  app/                   Next.js App Router pages + API routes
+    api/                 API route handlers (see API_CONTRACT.md)
+    dashboard/           Protected dashboard
+    profile/             Role + profile editor
+    tutors/              Browse + detail
+    requests/            Post + browse + detail
+    messages/            Threads + conversation view + in-thread scheduler
+    sessions/            Session list + detail + status + review
+    signin/              Credentials sign-in page
+  components/            Shared components (navbar, auth buttons, providers)
+  lib/                   Server-side helpers (db, auth, API envelope, tutor/request/session logic)
+  types/                 Ambient module augmentation
+```
 
-## Scope
+## API surface
 
-Included in the initial product direction:
+See `API_CONTRACT.md`. The contract is implemented by the route handlers in `src/app/api`. Every route returns the `{ ok, data }` / `{ ok, error }` envelope defined there.
 
-- web and mobile-friendly experience
-- NYU student community focus
-- secure user accounts based on `@nyu.edu` email verification
-- request posting, discovery, communication, and scheduling workflows
+Implemented now:
 
-Not included:
+- `GET  /api/me` · `GET /api/profile` · `PATCH /api/profile`
+- `GET  /api/tutors` · `GET /api/tutors/:id`
+- `GET  /api/requests` · `POST /api/requests` · `GET /api/requests/:id`
+- `GET  /api/subjects`
+- `POST /api/threads` · `GET /api/threads` · `GET /api/threads/:id`
+- `POST /api/messages`
+- `POST /api/sessions` · `GET /api/sessions` · `GET /api/sessions/:id` · `PATCH /api/sessions/:id`
+- `POST /api/reviews`
 
-- direct integration with NYU or other university SIS systems
-- in-app payment processing
-- built-in video conferencing
+## Scripts
 
-## Compliance and Constraints
+- `npm run dev` — Next dev server
+- `npm run build` / `npm start` — production build
+- `npm run lint` — ESLint
+- `npm run prisma:generate` — regenerate Prisma Client
+- `npm run prisma:studio` — open Prisma Studio
+- `npm run prisma:seed` — re-run the seed script (idempotent)
 
-- FERPA compliance is a core requirement.
-- The system will not pull transcripts, grades, or enrollment data from university systems.
-- Any verification artifacts must be voluntarily provided by the student and handled with strict privacy controls.
+## Compliance notes
 
-## Initial Priorities
-
-The first implementation phase will focus on:
-
-1. authentication and onboarding
-2. user profiles
-3. tutoring request posting and browsing
-4. messaging
-5. session scheduling
-
-Advanced matching logic and verified course badges can follow after the core workflow is stable.
+- Only `@nyu.edu` emails can sign in.
+- No integration with NYU SIS / transcripts. The data model supports a tutor verification flag, but the MVP flow does not pull anything from university systems.
+- No payment processing. `Session.agreedRateCents` is informational only.
 
 ## Team
 
@@ -88,13 +115,3 @@ Advanced matching logic and verified course badges can follow after the core wor
 - Erfu Hai (`eh3323`)
 - Michael Bian (`zb2253`)
 - David Rokicki (`dr3492`)
-
-## Source Reference
-
-This README is based on the current project specification document in this folder:
-
-- `TutorLink_SSDS_Requirements_Analysis (2).docx`
-
-## Status
-
-Web foundation initialized. Next step is database schema design and backend/auth setup.

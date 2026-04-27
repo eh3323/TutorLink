@@ -1,9 +1,17 @@
-import { DeliveryMode } from "@prisma/client";
-
 import { ApiError, apiCreated, apiOk, handleRouteError, readJsonBody } from "@/lib/api";
+import { DeliveryMode } from "@/lib/enums";
 import { requireSessionUser } from "@/lib/permissions";
-import { createSession, listSessions, parseSessionSearchParams } from "@/lib/sessions";
+import { createSession, listSessionsForUser } from "@/lib/sessions";
 import { parseNumber, parseString, requireObject } from "@/lib/validation";
+
+export async function GET() {
+  try {
+    const sessionUser = await requireSessionUser();
+    return apiOk({ sessions: await listSessionsForUser(sessionUser) });
+  } catch (error) {
+    return handleRouteError(error);
+  }
+}
 
 type SessionPostBody = {
   tutorId?: unknown;
@@ -157,18 +165,6 @@ export async function POST(request: Request) {
         notes,
       }),
     );
-  } catch (error) {
-    return handleRouteError(error);
-  }
-}
-
-export async function GET(request: Request) {
-  try {
-    const sessionUser = await requireSessionUser();
-    const { searchParams } = new URL(request.url);
-    const filters = parseSessionSearchParams(searchParams);
-
-    return apiOk(await listSessions(sessionUser, filters));
   } catch (error) {
     return handleRouteError(error);
   }

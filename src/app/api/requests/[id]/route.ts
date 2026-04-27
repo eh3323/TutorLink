@@ -1,16 +1,14 @@
 import { apiOk, handleRouteError } from "@/lib/api";
-import { getTutoringRequestDetail } from "@/lib/requests";
+import { getRequestDetail } from "@/lib/requests";
 
-type RequestDetailRouteContext = {
-  params: Promise<{
-    id: string;
-  }>;
+type RouteContext = {
+  params: Promise<{ id: string }>;
 };
 
-export async function GET(_: Request, context: RequestDetailRouteContext) {
+export async function GET(_: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
-    return apiOk(await getTutoringRequestDetail(id));
+    return apiOk(await getRequestDetail(id));
   } catch (error) {
     return handleRouteError(error);
   }

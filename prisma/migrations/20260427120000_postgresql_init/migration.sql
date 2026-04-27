@@ -1,26 +1,11 @@
--- CreateEnum
-CREATE TYPE "Role" AS ENUM ('TUTOR', 'TUTEE', 'BOTH');
-
--- CreateEnum
-CREATE TYPE "VerificationStatus" AS ENUM ('UNVERIFIED', 'PENDING', 'VERIFIED');
-
--- CreateEnum
-CREATE TYPE "RequestStatus" AS ENUM ('OPEN', 'MATCHED', 'CLOSED', 'CANCELLED');
-
--- CreateEnum
-CREATE TYPE "ApplicationStatus" AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED', 'WITHDRAWN');
-
--- CreateEnum
-CREATE TYPE "DeliveryMode" AS ENUM ('ONLINE', 'IN_PERSON');
-
--- CreateEnum
-CREATE TYPE "SessionStatus" AS ENUM ('PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED');
-
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
-    "role" "Role",
+    "passwordHash" TEXT,
+    "role" TEXT,
+    "isAdmin" BOOLEAN NOT NULL DEFAULT false,
+    "isSuspended" BOOLEAN NOT NULL DEFAULT false,
     "schoolEmailVerifiedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -54,7 +39,7 @@ CREATE TABLE "TutorProfile" (
     "supportsInPerson" BOOLEAN NOT NULL DEFAULT false,
     "defaultLocation" TEXT,
     "availabilityNotes" TEXT,
-    "verificationStatus" "VerificationStatus" NOT NULL DEFAULT 'UNVERIFIED',
+    "verificationStatus" TEXT NOT NULL DEFAULT 'UNVERIFIED',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -108,11 +93,11 @@ CREATE TABLE "TutoringRequest" (
     "description" TEXT NOT NULL,
     "budgetMinCents" INTEGER,
     "budgetMaxCents" INTEGER,
-    "preferredMode" "DeliveryMode" NOT NULL,
+    "preferredMode" TEXT NOT NULL,
     "locationText" TEXT,
     "preferredStartAt" TIMESTAMP(3),
     "preferredEndAt" TIMESTAMP(3),
-    "status" "RequestStatus" NOT NULL DEFAULT 'OPEN',
+    "status" TEXT NOT NULL DEFAULT 'OPEN',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -125,7 +110,7 @@ CREATE TABLE "RequestApplication" (
     "requestId" TEXT NOT NULL,
     "tutorProfileId" TEXT NOT NULL,
     "message" TEXT,
-    "status" "ApplicationStatus" NOT NULL DEFAULT 'PENDING',
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -165,11 +150,11 @@ CREATE TABLE "Session" (
     "requestId" TEXT,
     "scheduledAt" TIMESTAMP(3) NOT NULL,
     "durationMinutes" INTEGER NOT NULL,
-    "mode" "DeliveryMode" NOT NULL,
+    "mode" TEXT NOT NULL,
     "locationText" TEXT,
     "agreedRateCents" INTEGER,
     "notes" TEXT,
-    "status" "SessionStatus" NOT NULL DEFAULT 'PENDING',
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

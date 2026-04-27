@@ -1,7 +1,8 @@
-import { Prisma, Role } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import { ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
+import { Role } from "@/lib/enums";
 import { canActAsTutee, canActAsTutor, SessionUser } from "@/lib/permissions";
 
 const threadInclude = Prisma.validator<Prisma.MessageThreadInclude>()({
@@ -35,12 +36,6 @@ const threadInclude = Prisma.validator<Prisma.MessageThreadInclude>()({
       },
     },
   },
-  _count: {
-    select: {
-      messages: true,
-      sessions: true,
-    },
-  },
 });
 
 const messageInclude = Prisma.validator<Prisma.MessageInclude>()({
@@ -51,38 +46,8 @@ const messageInclude = Prisma.validator<Prisma.MessageInclude>()({
   },
 });
 
-const threadDetailInclude = Prisma.validator<Prisma.MessageThreadInclude>()({
-  tutor: {
-    include: {
-      profile: true,
-      tutorProfile: true,
-    },
-  },
-  tutee: {
-    include: {
-      profile: true,
-      tuteeProfile: true,
-    },
-  },
-  request: {
-    include: {
-      subject: true,
-    },
-  },
-  _count: {
-    select: {
-      messages: true,
-      sessions: true,
-    },
-  },
-});
-
 type ThreadRecord = Prisma.MessageThreadGetPayload<{
   include: typeof threadInclude;
-}>;
-
-type ThreadDetailRecord = Prisma.MessageThreadGetPayload<{
-  include: typeof threadDetailInclude;
 }>;
 
 type MessageRecord = Prisma.MessageGetPayload<{
@@ -100,15 +65,11 @@ type CreateThreadResult = {
   thread: ReturnType<typeof formatThread>;
 };
 
-type ThreadSearchParams = {
-  mine?: "all" | "tutor" | "tutee";
-};
-
-function hasTutorRole(role: Role | null) {
+function hasTutorRole(role: string | null) {
   return role === Role.TUTOR || role === Role.BOTH;
 }
 
-function hasTuteeRole(role: Role | null) {
+function hasTuteeRole(role: string | null) {
   return role === Role.TUTEE || role === Role.BOTH;
 }
 
@@ -175,41 +136,6 @@ export function formatThread(thread: ThreadRecord) {
             },
           },
     latestMessage: formatLatestMessage(thread.messages[0]),
-    stats: {
-      messageCount: thread._count.messages,
-      sessionCount: thread._count.sessions,
-    },
-  };
-}
-
-export function formatThreadDetail(thread: ThreadDetailRecord) {
-  return {
-    id: thread.id,
-    createdAt: thread.createdAt,
-    updatedAt: thread.updatedAt,
-    participants: {
-      tutor: formatParticipant(thread.tutor),
-      tutee: formatParticipant(thread.tutee),
-    },
-    request:
-      thread.request == null
-        ? null
-        : {
-            id: thread.request.id,
-            title: thread.request.title,
-            status: thread.request.status,
-            subject: {
-              id: thread.request.subject.id,
-              department: thread.request.subject.department,
-              code: thread.request.subject.code,
-              name: thread.request.subject.name,
-              label: formatSubjectLabel(thread.request.subject),
-            },
-          },
-    stats: {
-      messageCount: thread._count.messages,
-      sessionCount: thread._count.sessions,
-    },
   };
 }
 
@@ -223,6 +149,7 @@ export function formatMessage(message: MessageRecord) {
     sender: {
       id: message.sender.id,
       fullName: message.sender.profile?.fullName ?? message.sender.email,
+      avatarUrl: message.sender.profile?.avatarUrl ?? null,
     },
   };
 }
@@ -254,47 +181,6 @@ function ensureThreadParticipantRole(sessionUser: SessionUser, thread: { tutorId
       "Your account cannot act as a tutee for this thread.",
     );
   }
-}
-
-export function parseThreadSearchParams(searchParams: URLSearchParams): ThreadSearchParams {
-  const mineRaw = searchParams.get("mine");
-
-  if (!mineRaw) {
-    return {};
-  }
-
-  if (mineRaw !== "all" && mineRaw !== "tutor" && mineRaw !== "tutee") {
-    throw new ApiError(400, "INVALID_INPUT", "mine must be all, tutor, or tutee.");
-  }
-
-  return {
-    mine: mineRaw,
-  };
-}
-
-export function parseMessageListParams(searchParams: URLSearchParams) {
-  const threadId = searchParams.get("threadId")?.trim();
-  const limitRaw = searchParams.get("limit");
-
-  if (!threadId) {
-    throw new ApiError(400, "INVALID_INPUT", "threadId is required.");
-  }
-
-  let limit = 50;
-  if (limitRaw) {
-    const parsedLimit = Number.parseInt(limitRaw, 10);
-
-    if (Number.isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
-      throw new ApiError(400, "INVALID_INPUT", "limit must be an integer from 1 to 100.");
-    }
-
-    limit = parsedLimit;
-  }
-
-  return {
-    threadId,
-    limit,
-  };
 }
 
 export async function createOrReuseThread(
@@ -411,38 +297,40 @@ export async function createOrReuseThread(
   };
 }
 
-export async function listThreads(sessionUser: SessionUser, filters: ThreadSearchParams) {
+export async function listThreadsForUser(sessionUser: SessionUser) {
   const threads = await db.messageThread.findMany({
     where: {
-      OR: [
-        ...(filters.mine === "tutor"
-          ? [{ tutorId: sessionUser.id }]
-          : filters.mine === "tutee"
-            ? [{ tuteeId: sessionUser.id }]
-            : [{ tutorId: sessionUser.id }, { tuteeId: sessionUser.id }]),
-      ],
+      OR: [{ tutorId: sessionUser.id }, { tuteeId: sessionUser.id }],
     },
     include: threadInclude,
-    orderBy: [
-      {
-        updatedAt: "desc",
+    orderBy: { updatedAt: "desc" },
+  });
+
+  return threads.map((thread) => {
+    const formatted = formatThread(thread);
+    const isTutorSide = thread.tutorId === sessionUser.id;
+    return {
+      ...formatted,
+      viewerRole: isTutorSide ? "TUTOR" : "TUTEE",
+      counterpart: isTutorSide ? formatted.participants.tutee : formatted.participants.tutor,
+    };
+  });
+}
+
+export async function getThreadDetailForUser(sessionUser: SessionUser, threadId: string) {
+  const thread = await db.messageThread.findUnique({
+    where: { id: threadId },
+    include: {
+      ...threadInclude,
+      messages: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          sender: {
+            include: { profile: true },
+          },
+        },
       },
-    ],
-  });
-
-  return {
-    threads: threads.map(formatThread),
-    filters: {
-      mine: filters.mine ?? "all",
     },
-    total: threads.length,
-  };
-}
-
-export async function getThreadDetail(sessionUser: SessionUser, threadId: string) {
-  const thread = await db.messageThread.findUnique({
-    where: { id: threadId },
-    include: threadDetailInclude,
   });
 
   if (!thread) {
@@ -451,38 +339,12 @@ export async function getThreadDetail(sessionUser: SessionUser, threadId: string
 
   ensureThreadParticipantRole(sessionUser, thread);
 
-  return formatThreadDetail(thread);
-}
-
-export async function listThreadMessages(
-  sessionUser: SessionUser,
-  threadId: string,
-  limit: number,
-) {
-  const thread = await db.messageThread.findUnique({
-    where: { id: threadId },
-    include: threadDetailInclude,
-  });
-
-  if (!thread) {
-    throw new ApiError(404, "THREAD_NOT_FOUND", "Message thread was not found.");
-  }
-
-  ensureThreadParticipantRole(sessionUser, thread);
-
-  const messages = await db.message.findMany({
-    where: { threadId },
-    include: messageInclude,
-    orderBy: {
-      createdAt: "asc",
-    },
-    take: limit,
-  });
-
   return {
-    thread: formatThreadDetail(thread),
-    messages: messages.map(formatMessage),
-    total: messages.length,
+    thread: formatThread({
+      ...thread,
+      messages: thread.messages.slice(-1),
+    }),
+    messages: thread.messages.map(formatMessage),
   };
 }
 

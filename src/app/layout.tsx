@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
+
 import "./globals.css";
 
+import { Navbar } from "@/components/navbar";
+import { Providers } from "@/components/providers";
+
 export const metadata: Metadata = {
-  title: "TutorLink",
-  description: "NYU peer-to-peer tutoring marketplace design project",
+  title: "TutorLink — NYU peer tutoring marketplace",
+  description:
+    "Find approachable NYU peer tutors by subject, availability, and budget. Message, book, and review them in one place.",
 };
 
 export default function RootLayout({
@@ -13,7 +18,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full bg-slate-950 text-slate-100">
+        <Providers>
+          <Navbar />
+          <div className="flex min-h-[calc(100vh-4rem)] flex-col">{children}</div>
+        </Providers>
+      </body>
     </html>
   );
 }

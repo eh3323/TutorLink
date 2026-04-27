@@ -1,7 +1,8 @@
-import { Prisma, Role, VerificationStatus } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import { ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
+import { Role, VerificationStatus } from "@/lib/enums";
 
 const tutorListInclude = Prisma.validator<Prisma.UserInclude>()({
   profile: true,
@@ -286,19 +287,16 @@ export async function listTutors(searchParams: TutorSearchParams) {
                         {
                           department: {
                             contains: searchParams.subject,
-                            mode: "insensitive",
                           },
                         },
                         {
                           code: {
                             contains: searchParams.subject,
-                            mode: "insensitive",
                           },
                         },
                         {
                           name: {
                             contains: searchParams.subject,
-                            mode: "insensitive",
                           },
                         },
                       ],

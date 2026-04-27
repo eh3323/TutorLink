@@ -1,11 +1,9 @@
-import { DeliveryMode } from "@prisma/client";
-
-import { auth } from "@/lib/auth";
 import { ApiError, apiCreated, apiOk, handleRouteError, readJsonBody } from "@/lib/api";
+import { DeliveryMode } from "@/lib/enums";
 import { requireSessionUser } from "@/lib/permissions";
 import {
-  createTutoringRequest,
-  listTutoringRequests,
+  createRequest,
+  listRequests,
   parseRequestSearchParams,
 } from "@/lib/requests";
 import { parseNumber, parseString, requireObject } from "@/lib/validation";
@@ -24,83 +22,43 @@ type RequestPostBody = {
 
 function parseMode(value: unknown) {
   if (value !== DeliveryMode.ONLINE && value !== DeliveryMode.IN_PERSON) {
-    throw new ApiError(
-      400,
-      "INVALID_INPUT",
-      "preferredMode must be ONLINE or IN_PERSON.",
-    );
+    throw new ApiError(400, "INVALID_INPUT", "preferredMode must be ONLINE or IN_PERSON.");
   }
+  return value as DeliveryMode;
+}
 
-  return value;
+function parseNullableInt(value: unknown, field: string, min: number, max: number) {
+  if (value === undefined) return undefined;
+  if (value == null || value === "") return null;
+  return parseNumber(value, { field, integer: true, min, max });
+}
+
+function parseNullableDate(value: unknown, field: string) {
+  if (value === undefined) return undefined;
+  if (value == null || value === "") return null;
+  const text = parseString(value, { field, required: true, maxLength: 100 });
+  if (!text) throw new ApiError(400, "INVALID_INPUT", `${field} is required.`);
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) {
+    throw new ApiError(400, "INVALID_INPUT", `${field} must be a valid datetime.`);
+  }
+  return date;
 }
 
 function parseNullableString(value: unknown, field: string, maxLength: number) {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value == null || value === "") {
-    return null;
-  }
-
-  return parseString(value, {
-    field,
-    minLength: 1,
-    maxLength,
-  });
+  if (value === undefined) return undefined;
+  if (value == null || value === "") return null;
+  return parseString(value, { field, minLength: 1, maxLength });
 }
 
-function parseNullableInteger(
-  value: unknown,
-  field: string,
-  options: { min: number; max: number },
-) {
-  if (value === undefined) {
-    return undefined;
+export async function GET(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const params = parseRequestSearchParams(url.searchParams);
+    return apiOk(await listRequests(params));
+  } catch (error) {
+    return handleRouteError(error);
   }
-
-  if (value == null || value === "") {
-    return null;
-  }
-
-  return parseNumber(value, {
-    field,
-    integer: true,
-    min: options.min,
-    max: options.max,
-  });
-}
-
-function parseNullableDateTime(value: unknown, field: string) {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value == null || value === "") {
-    return null;
-  }
-
-  const text = parseString(value, {
-    field,
-    minLength: 1,
-    maxLength: 100,
-  });
-
-  if (!text) {
-    return null;
-  }
-
-  const date = new Date(text);
-
-  if (Number.isNaN(date.getTime())) {
-    throw new ApiError(
-      400,
-      "INVALID_INPUT",
-      `${field} must be a valid ISO datetime string.`,
-    );
-  }
-
-  return date;
 }
 
 export async function POST(request: Request) {
@@ -114,42 +72,31 @@ export async function POST(request: Request) {
       minLength: 1,
       maxLength: 100,
     });
-
     const title = parseString(body.title, {
       field: "title",
       required: true,
       minLength: 3,
-      maxLength: 120,
+      maxLength: 200,
     });
-
     const description = parseString(body.description, {
       field: "description",
       required: true,
       minLength: 10,
       maxLength: 2000,
     });
-
-    const budgetMinCents = parseNullableInteger(body.budgetMinCents, "budgetMinCents", {
-      min: 0,
-      max: 100000,
-    });
-
-    const budgetMaxCents = parseNullableInteger(body.budgetMaxCents, "budgetMaxCents", {
-      min: 0,
-      max: 100000,
-    });
-
     const preferredMode = parseMode(body.preferredMode);
-    const locationText = parseNullableString(body.locationText, "locationText", 120);
-    const preferredStartAt = parseNullableDateTime(body.preferredStartAt, "preferredStartAt");
-    const preferredEndAt = parseNullableDateTime(body.preferredEndAt, "preferredEndAt");
+    const budgetMinCents = parseNullableInt(body.budgetMinCents, "budgetMinCents", 0, 100000);
+    const budgetMaxCents = parseNullableInt(body.budgetMaxCents, "budgetMaxCents", 0, 100000);
+    const locationText = parseNullableString(body.locationText, "locationText", 200);
+    const preferredStartAt = parseNullableDate(body.preferredStartAt, "preferredStartAt");
+    const preferredEndAt = parseNullableDate(body.preferredEndAt, "preferredEndAt");
 
     if (!subjectId || !title || !description) {
       throw new ApiError(400, "INVALID_INPUT", "Missing required request fields.");
     }
 
     return apiCreated(
-      await createTutoringRequest(sessionUser, {
+      await createRequest(sessionUser, {
         subjectId,
         title,
         description,
@@ -161,18 +108,6 @@ export async function POST(request: Request) {
         preferredEndAt,
       }),
     );
-  } catch (error) {
-    return handleRouteError(error);
-  }
-}
-
-export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const filters = parseRequestSearchParams(searchParams);
-    const session = await auth();
-
-    return apiOk(await listTutoringRequests(filters, session?.user?.id));
   } catch (error) {
     return handleRouteError(error);
   }

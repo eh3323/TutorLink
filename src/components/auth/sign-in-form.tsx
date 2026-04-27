@@ -2,100 +2,75 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-
-const roles = [
-  { value: "TUTEE", label: "Tutee" },
-  { value: "TUTOR", label: "Tutor" },
-  { value: "BOTH", label: "Both" },
-] as const;
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 export function SignInForm() {
+  const searchParams = useSearchParams();
+  const fallback = searchParams?.get("callbackUrl") ?? "/dashboard";
   const [email, setEmail] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<(typeof roles)[number]["value"]>("TUTEE");
-  const [error, setError] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError("");
+    setError(null);
     setIsSubmitting(true);
 
     const result = await signIn("credentials", {
-      email,
-      fullName,
-      role,
+      email: email.trim(),
+      password,
       redirect: false,
-      callbackUrl: "/dashboard",
+      callbackUrl: fallback,
     });
 
     setIsSubmitting(false);
 
     if (!result || result.error) {
-      setError("Use a valid @nyu.edu email and complete all fields.");
+      setError("Incorrect email or password. Try again or create an account.");
       return;
     }
 
-    window.location.href = result.url ?? "/dashboard";
+    window.location.href = result.url ?? fallback;
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-slate-200" htmlFor="fullName">
-          Full name
-        </label>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <label className="block space-y-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          NYU email <span className="text-rose-300">*</span>
+        </span>
         <input
-          id="fullName"
-          name="fullName"
-          type="text"
-          value={fullName}
-          onChange={(event) => setFullName(event.target.value)}
-          className="w-full rounded-lg border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none ring-0 placeholder:text-slate-500 focus:border-cyan-300"
-          placeholder="Erfu Hai"
-          required
-        />
-      </div>
-
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-slate-200" htmlFor="email">
-          NYU email
-        </label>
-        <input
-          id="email"
-          name="email"
           type="email"
           value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          className="w-full rounded-lg border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none ring-0 placeholder:text-slate-500 focus:border-cyan-300"
-          placeholder="netid@nyu.edu"
+          onChange={(e) => setEmail(e.target.value)}
           required
+          className={inputClass}
+          placeholder="netid@nyu.edu"
+          autoComplete="email"
         />
-      </div>
+      </label>
 
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-slate-200" htmlFor="role">
-          Starting role
-        </label>
-        <select
-          id="role"
-          name="role"
-          value={role}
-          onChange={(event) => setRole(event.target.value as (typeof roles)[number]["value"])}
-          className="w-full rounded-lg border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none focus:border-cyan-300"
-        >
-          {roles.map((item) => (
-            <option key={item.value} value={item.value}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <label className="block space-y-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          Password <span className="text-rose-300">*</span>
+        </span>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          className={inputClass}
+          placeholder="Your password"
+          autoComplete="current-password"
+        />
+      </label>
 
       {error ? (
-        <div className="rounded-lg border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+        <p className="rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
           {error}
-        </div>
+        </p>
       ) : null}
 
       <button
@@ -103,8 +78,18 @@ export function SignInForm() {
         disabled={isSubmitting}
         className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-cyan-300 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isSubmitting ? "Signing in..." : "Continue"}
+        {isSubmitting ? "Signing in…" : "Sign in"}
       </button>
+
+      <p className="text-center text-xs text-slate-400">
+        No account yet?{" "}
+        <Link href="/register" className="font-medium text-cyan-300 hover:text-cyan-200">
+          Create one
+        </Link>
+      </p>
     </form>
   );
 }
+
+const inputClass =
+  "w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-300";

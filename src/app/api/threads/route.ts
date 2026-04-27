@@ -1,7 +1,16 @@
 import { apiCreated, apiOk, handleRouteError, readJsonBody } from "@/lib/api";
-import { createOrReuseThread, listThreads, parseThreadSearchParams } from "@/lib/messages";
+import { createOrReuseThread, listThreadsForUser } from "@/lib/messages";
 import { requireSessionUser } from "@/lib/permissions";
 import { parseString, requireObject } from "@/lib/validation";
+
+export async function GET() {
+  try {
+    const sessionUser = await requireSessionUser();
+    return apiOk({ threads: await listThreadsForUser(sessionUser) });
+  } catch (error) {
+    return handleRouteError(error);
+  }
+}
 
 type ThreadPostBody = {
   tutorId?: unknown;
@@ -44,18 +53,6 @@ export async function POST(request: Request) {
     });
 
     return result.reused ? apiOk(result) : apiCreated(result);
-  } catch (error) {
-    return handleRouteError(error);
-  }
-}
-
-export async function GET(request: Request) {
-  try {
-    const sessionUser = await requireSessionUser();
-    const { searchParams } = new URL(request.url);
-    const filters = parseThreadSearchParams(searchParams);
-
-    return apiOk(await listThreads(sessionUser, filters));
   } catch (error) {
     return handleRouteError(error);
   }
