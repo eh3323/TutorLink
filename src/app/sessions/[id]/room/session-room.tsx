@@ -8,8 +8,6 @@ import { Avatar } from "@/components/avatar";
 import { MathText } from "@/components/math-text";
 import { formatCurrencyCents, formatDateTime, formatRelativeTime } from "@/lib/format";
 
-// heavy panels are loaded only on the client. tldraw + monaco both touch the
-// dom on import, so ssr would crash the build.
 const WhiteboardPanel = dynamic(() => import("./whiteboard-panel"), {
   ssr: false,
   loading: () => <PanelSkeleton label="Loading whiteboard…" />,
@@ -102,6 +100,15 @@ export function SessionRoom({
   const [tab, setTab] = useState<Tab>("video");
   const [chatOpen, setChatOpen] = useState(true);
   const [useJitsi, setUseJitsi] = useState(!livekitEnabled);
+  const [pipMinimised, setPipMinimised] = useState(false);
+  const [canvasBox, setCanvasBox] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  const mainCanvasRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const lastIdRef = useRef<string | null>(null);
 
@@ -111,13 +118,6 @@ export function SessionRoom({
     [scheduledAt, durationMinutes],
   );
 
-  // billing meter: count from the moment the session was supposed to start
-  // (or from now if you joined early). once you pass the scheduled end we
-  // keep ticking so over-time is visible to both sides.
-  const meterStart = useMemo(
-    () => Math.max(scheduledAt.getTime(), now - durationMinutes * 60_000),
-    [scheduledAt, durationMinutes, now],
-  );
   const elapsedSec = Math.max(0, (now - scheduledAt.getTime()) / 1000);
   const meterAmountCents =
     agreedRateCents != null
@@ -137,6 +137,28 @@ export function SessionRoom({
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  // measure the main canvas slot so the fixed-position video layer can match
+  // its position/size when tab=video. updates on resize, scroll, layout shift,
+  // tab switches and chat open/close.
+  useEffect(() => {
+    const el = mainCanvasRef.current;
+    if (!el) return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      setCanvasBox({ top: r.top, left: r.left, width: r.width, height: r.height });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, { passive: true });
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure);
+    };
+  }, [tab, chatOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -223,6 +245,38 @@ export function SessionRoom({
     { id: "code", label: "Code" },
   ];
 
+  const videoIsLiveKit = livekitEnabled && !useJitsi;
+
+  const videoStyle: React.CSSProperties =
+    tab === "video" && canvasBox
+      ? {
+          position: "fixed",
+          top: canvasBox.top,
+          left: canvasBox.left,
+          width: canvasBox.width,
+          height: canvasBox.height,
+          zIndex: 30,
+        }
+      : tab === "video"
+        ? { display: "none" }
+        : pipMinimised
+          ? {
+              position: "fixed",
+              right: 16,
+              bottom: 16,
+              width: 220,
+              height: 36,
+              zIndex: 40,
+            }
+          : {
+              position: "fixed",
+              right: 16,
+              bottom: 16,
+              width: 320,
+              height: 200,
+              zIndex: 40,
+            };
+
   return (
     <main className="flex-1">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6">
@@ -273,7 +327,6 @@ export function SessionRoom({
           </div>
         </header>
 
-        {/* tabs */}
         <div className="flex flex-wrap items-center gap-2 border-b border-white/10">
           {tabs.map((t) => (
             <button
@@ -289,7 +342,7 @@ export function SessionRoom({
               {t.label}
             </button>
           ))}
-          {tab === "video" && livekitEnabled ? (
+          {livekitEnabled ? (
             <button
               type="button"
               onClick={() => setUseJitsi((v) => !v)}
@@ -303,37 +356,40 @@ export function SessionRoom({
         <div
           className={`grid gap-4 ${chatOpen ? "lg:grid-cols-[2fr_1fr]" : "grid-cols-1"}`}
         >
-          {/* main canvas */}
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
-            <div className="h-[62vh] min-h-[400px]">
-              {tab === "video" ? (
-                useJitsi || !livekitEnabled ? (
-                  <iframe
-                    key={jitsiSrc}
-                    src={jitsiSrc}
-                    allow="camera; microphone; fullscreen; speaker; display-capture; autoplay"
-                    className="h-full w-full"
-                  />
-                ) : (
-                  <LiveKitPanel
+          {/* main canvas — whiteboard + code stay mounted with their tabs
+              just hidden via classes so live sync isn't torn down. the
+              video layer below is rendered once outside this div and gets
+              repositioned via a measured fixed-position style. */}
+          <div className="relative">
+            <div
+              ref={mainCanvasRef}
+              className="overflow-hidden rounded-2xl border border-white/10 bg-black"
+            >
+              <div className="relative h-[62vh] min-h-[400px]">
+                <div
+                  className={`absolute inset-0 ${tab === "whiteboard" ? "" : "pointer-events-none invisible"}`}
+                >
+                  <WhiteboardPanel roomId={`tutorlink-wb-${roomToken}`} />
+                </div>
+
+                <div
+                  className={`absolute inset-0 ${tab === "code" ? "" : "pointer-events-none invisible"}`}
+                >
+                  <CodePanel
                     sessionId={sessionId}
-                    onUnavailable={() => setUseJitsi(true)}
+                    displayName={me.fullName || me.email || "participant"}
                   />
-                )
-              ) : null}
-              {tab === "whiteboard" ? (
-                <WhiteboardPanel persistenceKey={`tutorlink-wb-${roomToken}`} />
-              ) : null}
-              {tab === "code" ? (
-                <CodePanel
-                  collabRoom={`tutorlink-code-${sessionId}-${roomToken}`}
-                  displayName={me.fullName || me.email || "participant"}
-                />
-              ) : null}
+                </div>
+
+                {tab === "video" ? (
+                  <div className="flex h-full w-full items-center justify-center text-[11px] uppercase tracking-wide text-slate-700">
+                    Camera in main canvas
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
 
-          {/* chat side panel */}
           {chatOpen ? (
             <div className="flex h-[62vh] flex-col rounded-2xl border border-white/10 bg-white/5">
               <div className="flex items-center gap-3 border-b border-white/10 p-4">
@@ -418,11 +474,61 @@ export function SessionRoom({
         </div>
 
         <p className="text-center text-[11px] text-slate-500">
-          {livekitEnabled && !useJitsi
+          {videoIsLiveKit
             ? "Private LiveKit room — only invited participants can join."
             : "Public Jitsi fallback. For real privacy, set up LiveKit."}{" "}
-          Whiteboard saves locally per device. Code edits sync peer-to-peer.
+          Whiteboard + code sync live across both sides.
         </p>
+      </div>
+
+      {/* the video container is rendered exactly once across the lifetime of
+          the page. its style switches between fullsize (matched to the main
+          canvas via measurement) and a small pip thumbnail. children never
+          remount, so the call/camera/mic stay alive through tab changes. */}
+      <div
+        style={videoStyle}
+        className="overflow-hidden rounded-2xl border border-white/15 bg-black shadow-2xl"
+      >
+        {tab !== "video" ? (
+          <div className="flex items-center justify-between gap-2 border-b border-white/10 bg-slate-950/80 px-2 py-1 text-[10px] text-slate-300">
+            <button
+              type="button"
+              onClick={() => setTab("video")}
+              className="font-semibold uppercase tracking-wide hover:text-white"
+            >
+              Camera · click to expand
+            </button>
+            <button
+              type="button"
+              onClick={() => setPipMinimised((v) => !v)}
+              className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10"
+              aria-label={pipMinimised ? "Show camera" : "Hide camera"}
+            >
+              {pipMinimised ? "▴" : "▾"}
+            </button>
+          </div>
+        ) : null}
+        <div
+          className={
+            tab === "video"
+              ? "h-full w-full"
+              : `${pipMinimised ? "hidden" : ""} h-[calc(100%-1.75rem)] w-full`
+          }
+        >
+          {videoIsLiveKit ? (
+            <LiveKitPanel
+              sessionId={sessionId}
+              onUnavailable={() => setUseJitsi(true)}
+            />
+          ) : (
+            <iframe
+              key={jitsiSrc}
+              src={jitsiSrc}
+              allow="camera; microphone; fullscreen; speaker; display-capture; autoplay"
+              className="h-full w-full"
+            />
+          )}
+        </div>
       </div>
     </main>
   );

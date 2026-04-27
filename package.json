@@ -20,6 +20,7 @@
     "@livekit/components-styles": "^1.2.0",
     "@monaco-editor/react": "^4.7.0",
     "@prisma/client": "^6.17.1",
+    "@tldraw/sync": "^4.5.10",
     "@vercel/blob": "^2.3.3",
     "bcryptjs": "^3.0.3",
     "katex": "^0.16.45",

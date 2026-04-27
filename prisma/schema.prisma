@@ -227,6 +227,19 @@ model SessionAttachment {
   @@index([sessionId])
 }
 
+// per-session yjs op log used to relay live collab edits (code editor today,
+// could also back the whiteboard later). each row is one Y.Doc update encoded
+// as bytes; clients append theirs and poll for newer ones from peers.
+model YjsOp {
+  id        String   @id @default(cuid())
+  sessionId String
+  docKey    String
+  payload   Bytes
+  createdAt DateTime @default(now())
+
+  @@index([sessionId, docKey, createdAt])
+}
+
 model Review {
   id                  String    @id @default(cuid())
   sessionId           String
