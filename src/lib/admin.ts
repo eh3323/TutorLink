@@ -281,6 +281,13 @@ export async function listAdminVerifications(params: { status?: string | null })
     verificationStatus: u.verificationStatus,
     verificationNote: u.verificationNote,
     verificationSubmittedAt: u.verificationSubmittedAt,
+    verificationDocument: u.verificationDocumentUrl
+      ? {
+          name: u.verificationDocumentName ?? "document",
+          mimeType: u.verificationDocumentType ?? "application/octet-stream",
+          sizeBytes: u.verificationDocumentSize ?? null,
+        }
+      : null,
     fullName: u.profile?.fullName ?? u.email,
     avatarUrl: u.profile?.avatarUrl ?? null,
     major: u.profile?.major ?? null,

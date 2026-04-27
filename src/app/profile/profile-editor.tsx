@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type InitialData = {
@@ -12,6 +12,11 @@ type InitialData = {
     verificationStatus?: string;
     verificationNote?: string | null;
     verificationSubmittedAt?: Date | string | null;
+    verificationDocument?: {
+      name: string;
+      mimeType: string;
+      sizeBytes: number | null;
+    } | null;
   };
   profile: {
     fullName: string;
@@ -84,20 +89,66 @@ export function ProfileEditor({ initialData }: { initialData: InitialData }) {
   const [verificationNote, setVerificationNote] = useState(
     initialData.user.verificationNote ?? "",
   );
+  const [verificationDocument, setVerificationDocument] = useState(
+    initialData.user.verificationDocument ?? null,
+  );
   const [verifyMessage, setVerifyMessage] = useState("");
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [verifyOk, setVerifyOk] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyFileName, setVerifyFileName] = useState<string | null>(null);
+  const verifyFileRef = useRef<HTMLInputElement | null>(null);
+
+  function onVerifyFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    setVerifyError(null);
+    if (!file) {
+      setVerifyFileName(null);
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setVerifyError("Document must be 8 MB or smaller.");
+      if (verifyFileRef.current) verifyFileRef.current.value = "";
+      setVerifyFileName(null);
+      return;
+    }
+    const allowed = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+    ];
+    if (!allowed.includes(file.type)) {
+      setVerifyError("Use PDF, DOC, DOCX, PNG, JPEG, or WEBP.");
+      if (verifyFileRef.current) verifyFileRef.current.value = "";
+      setVerifyFileName(null);
+      return;
+    }
+    setVerifyFileName(file.name);
+  }
 
   async function submitForVerification() {
     setVerifyError(null);
     setVerifyOk(null);
+
+    const file = verifyFileRef.current?.files?.[0] ?? null;
+    if (!file) {
+      setVerifyError(
+        "Attach a PDF, Word document, or image proving your NYU identity.",
+      );
+      return;
+    }
+
     setIsVerifying(true);
     try {
+      const formData = new FormData();
+      formData.append("document", file);
+      formData.append("note", verifyMessage.trim());
       const response = await fetch("/api/profile/verify", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: verifyMessage.trim() || null }),
+        body: formData,
       });
       const payload = await response.json();
       if (!response.ok || !payload.ok) {
@@ -107,7 +158,21 @@ export function ProfileEditor({ initialData }: { initialData: InitialData }) {
       } else {
         setVerification(payload.data.verificationStatus);
         setVerificationNote(payload.data.verificationNote ?? verifyMessage);
+        setVerificationDocument(
+          payload.data.verificationDocumentUrl
+            ? {
+                name:
+                  payload.data.verificationDocumentName ?? file.name,
+                mimeType:
+                  payload.data.verificationDocumentType ?? file.type,
+                sizeBytes:
+                  payload.data.verificationDocumentSize ?? file.size,
+              }
+            : verificationDocument,
+        );
         setVerifyMessage("");
+        setVerifyFileName(null);
+        if (verifyFileRef.current) verifyFileRef.current.value = "";
         setVerifyOk(
           "Submitted. An admin will review your account shortly.",
         );
@@ -118,6 +183,13 @@ export function ProfileEditor({ initialData }: { initialData: InitialData }) {
     } finally {
       setIsVerifying(false);
     }
+  }
+
+  function formatBytes(bytes: number | null) {
+    if (bytes == null) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   const [tuteeGoals, setTuteeGoals] = useState(initialData.tuteeProfile?.learningGoals ?? "");
@@ -280,9 +352,10 @@ export function ProfileEditor({ initialData }: { initialData: InitialData }) {
               Identity verification
             </h2>
             <p className="mt-1 text-sm text-slate-400">
-              Open to every TutorLink user. Submit your account and an admin
-              will confirm you’re a real NYU student. Verified accounts get a
-              badge and tutors rank higher in search.
+              Open to every TutorLink user. Upload a document that proves
+              you’re an NYU student (e.g. NYU ID card photo, course
+              registration PDF, or NYU.edu email screenshot). An admin will
+              review and approve your account.
             </p>
           </div>
           <span
@@ -299,60 +372,107 @@ export function ProfileEditor({ initialData }: { initialData: InitialData }) {
         </div>
 
         {verification === "VERIFIED" ? (
-          <p className="mt-4 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
-            You’re verified. The badge appears wherever you are listed on the
-            platform.
-          </p>
-        ) : verification === "PENDING" ? (
-          <div className="mt-4 space-y-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+          <div className="mt-4 space-y-3 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
             <p>
-              Your submission is in the queue. An admin will approve or follow
-              up shortly. You can resubmit if you need to update your note.
+              You’re verified. The badge appears wherever you are listed on the
+              platform.
             </p>
-            {verificationNote ? (
-              <p className="rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2 text-xs italic text-slate-200">
-                “{verificationNote}”
+            {verificationDocument ? (
+              <a
+                href="/api/profile/verify/document"
+                className="inline-flex items-center gap-2 self-start rounded-lg border border-white/15 bg-slate-950/40 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-900"
+              >
+                Download submitted document ({verificationDocument.name})
+              </a>
+            ) : null}
+          </div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {verification === "PENDING" ? (
+              <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                Your submission is in the queue. An admin will approve it
+                shortly. You can re-upload a new document below if you need to
+                replace it.
               </p>
             ) : null}
+
+            {verificationDocument ? (
+              <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-slate-950/40 px-4 py-3 text-xs text-slate-200 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="font-semibold text-white">Last upload</p>
+                  <p className="truncate">
+                    {verificationDocument.name}{" "}
+                    <span className="text-slate-400">
+                      · {verificationDocument.mimeType}
+                      {verificationDocument.sizeBytes
+                        ? ` · ${formatBytes(verificationDocument.sizeBytes)}`
+                        : ""}
+                    </span>
+                  </p>
+                </div>
+                <a
+                  href="/api/profile/verify/document"
+                  className="inline-flex shrink-0 items-center rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/10"
+                >
+                  Download
+                </a>
+              </div>
+            ) : null}
+
+            {verificationNote ? (
+              <p className="rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2 text-xs italic text-slate-200">
+                Note for admin: “{verificationNote}”
+              </p>
+            ) : null}
+
+            <div className="space-y-2 rounded-xl border border-white/10 bg-slate-950/30 p-4">
+              <label className="block text-xs font-medium uppercase tracking-wide text-slate-400">
+                Verification document <span className="text-rose-300">*</span>
+              </label>
+              <p className="text-xs text-slate-400">
+                PDF, DOC, DOCX, PNG, JPEG, or WEBP — up to 8 MB. Only admins
+                can view your file.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => verifyFileRef.current?.click()}
+                  className="inline-flex h-10 items-center rounded-lg border border-white/15 bg-white/5 px-4 text-sm font-medium text-white hover:bg-white/10"
+                >
+                  {verifyFileName ? "Choose different file" : "Choose file"}
+                </button>
+                <span className="text-xs text-slate-300">
+                  {verifyFileName ?? "No file selected"}
+                </span>
+                <input
+                  ref={verifyFileRef}
+                  type="file"
+                  accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={onVerifyFileChange}
+                />
+              </div>
+            </div>
+
             <textarea
               rows={3}
               value={verifyMessage}
               onChange={(e) => setVerifyMessage(e.target.value)}
               maxLength={600}
               className={`${inputClass} min-h-20`}
-              placeholder="Add or update context for the admin (optional)"
+              placeholder="Optional: anything else the admin should know (NetID, link to NYU profile, etc.)"
             />
             <button
               type="button"
               onClick={submitForVerification}
-              disabled={isVerifying}
+              disabled={isVerifying || !verifyFileName}
               className="inline-flex h-10 items-center justify-center rounded-lg bg-amber-300 px-4 text-sm font-semibold text-slate-950 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isVerifying ? "Submitting…" : "Resubmit note"}
-            </button>
-          </div>
-        ) : (
-          <div className="mt-4 space-y-3">
-            <p className="text-sm text-slate-300">
-              In your message, tell us your NYU NetID, NYU.edu email, or any
-              proof you’re a student (links, photos of an ID, etc.). The note
-              is only visible to admins.
-            </p>
-            <textarea
-              rows={3}
-              value={verifyMessage}
-              onChange={(e) => setVerifyMessage(e.target.value)}
-              maxLength={600}
-              className={`${inputClass} min-h-24`}
-              placeholder="e.g. NetID abc123, NYU.edu inbox screenshot uploaded"
-            />
-            <button
-              type="button"
-              onClick={submitForVerification}
-              disabled={isVerifying}
-              className="inline-flex h-10 items-center justify-center rounded-lg bg-amber-300 px-4 text-sm font-semibold text-slate-950 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isVerifying ? "Submitting…" : "Submit for verification"}
+              {isVerifying
+                ? "Submitting…"
+                : verification === "PENDING"
+                  ? "Resubmit document"
+                  : "Submit for verification"}
             </button>
           </div>
         )}

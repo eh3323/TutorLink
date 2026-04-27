@@ -32,6 +32,14 @@ export function formatCurrentUserProfile(user: CurrentUserProfileRecord) {
       verificationStatus: user.verificationStatus,
       verificationNote: user.verificationNote,
       verificationSubmittedAt: user.verificationSubmittedAt,
+      verificationDocument: user.verificationDocumentUrl
+        ? {
+            name: user.verificationDocumentName ?? "document",
+            mimeType:
+              user.verificationDocumentType ?? "application/octet-stream",
+            sizeBytes: user.verificationDocumentSize ?? null,
+          }
+        : null,
       schoolEmailVerifiedAt: user.schoolEmailVerifiedAt,
       createdAt: user.createdAt,
     },

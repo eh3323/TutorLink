@@ -16,6 +16,11 @@ type AdminUserVerification = {
   verificationStatus: string;
   verificationNote: string | null;
   verificationSubmittedAt: Date | string | null;
+  verificationDocument: {
+    name: string;
+    mimeType: string;
+    sizeBytes: number | null;
+  } | null;
   fullName: string;
   avatarUrl: string | null;
   major: string | null;
@@ -41,6 +46,13 @@ function formatSubmittedAt(value: Date | string | null) {
   } catch {
     return null;
   }
+}
+
+function formatBytes(bytes: number | null) {
+  if (bytes == null) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function VerificationTable({
@@ -150,8 +162,37 @@ export function VerificationTable({
                       “{u.verificationNote}”
                     </p>
                   ) : null}
+                  {u.verificationDocument ? (
+                    <a
+                      href={`/api/admin/verifications/${u.id}/document`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-flex items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-400/20"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        className="h-4 w-4"
+                      >
+                        <path d="M10 12a1 1 0 0 1-.7-.3l-3-3a1 1 0 0 1 1.4-1.4L9 8.59V3a1 1 0 0 1 2 0v5.59l1.3-1.3a1 1 0 1 1 1.4 1.42l-3 3a1 1 0 0 1-.7.29Z" />
+                        <path d="M4 14a1 1 0 0 1 1 1v1h10v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z" />
+                      </svg>
+                      Download {u.verificationDocument.name}
+                      <span className="text-[10px] font-medium text-amber-200/80">
+                        {u.verificationDocument.mimeType}
+                        {u.verificationDocument.sizeBytes
+                          ? ` · ${formatBytes(u.verificationDocument.sizeBytes)}`
+                          : ""}
+                      </span>
+                    </a>
+                  ) : (
+                    <p className="mt-2 text-[10px] italic text-slate-500">
+                      No document uploaded yet.
+                    </p>
+                  )}
                   {submitted ? (
-                    <p className="text-[10px] uppercase tracking-wide text-slate-500">
+                    <p className="mt-2 text-[10px] uppercase tracking-wide text-slate-500">
                       Submitted {submitted}
                     </p>
                   ) : null}

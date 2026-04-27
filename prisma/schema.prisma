@@ -17,6 +17,10 @@ model User {
   verificationStatus    String            @default("UNVERIFIED")
   verificationNote      String?
   verificationSubmittedAt DateTime?
+  verificationDocumentUrl  String?
+  verificationDocumentName String?
+  verificationDocumentType String?
+  verificationDocumentSize Int?
   schoolEmailVerifiedAt DateTime?
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
