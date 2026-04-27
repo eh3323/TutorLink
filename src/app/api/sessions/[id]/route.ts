@@ -146,7 +146,7 @@ export async function PATCH(request: Request, context: SessionRouteContext) {
     const locationText = parseNullableString(body.locationText, "locationText", 120);
     const agreedRateCents = parseNullableInteger(body.agreedRateCents, "agreedRateCents", {
       min: 0,
-      max: 100000,
+      max: 1000000,
     });
     const notes = parseNullableString(body.notes, "notes", 1000);
 

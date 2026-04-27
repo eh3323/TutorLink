@@ -119,7 +119,7 @@ export function NewRequestForm({ subjects }: { subjects: Subject[] }) {
             <input
               type="number"
               min={0}
-              max={1000}
+              max={10000}
               value={budgetMin}
               onChange={(e) => setBudgetMin(e.target.value)}
               className={inputClass}
@@ -130,7 +130,7 @@ export function NewRequestForm({ subjects }: { subjects: Subject[] }) {
             <input
               type="number"
               min={0}
-              max={1000}
+              max={10000}
               value={budgetMax}
               onChange={(e) => setBudgetMax(e.target.value)}
               className={inputClass}

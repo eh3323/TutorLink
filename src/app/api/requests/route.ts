@@ -85,8 +85,8 @@ export async function POST(request: Request) {
       maxLength: 2000,
     });
     const preferredMode = parseMode(body.preferredMode);
-    const budgetMinCents = parseNullableInt(body.budgetMinCents, "budgetMinCents", 0, 100000);
-    const budgetMaxCents = parseNullableInt(body.budgetMaxCents, "budgetMaxCents", 0, 100000);
+    const budgetMinCents = parseNullableInt(body.budgetMinCents, "budgetMinCents", 0, 1000000);
+    const budgetMaxCents = parseNullableInt(body.budgetMaxCents, "budgetMaxCents", 0, 1000000);
     const locationText = parseNullableString(body.locationText, "locationText", 200);
     const preferredStartAt = parseNullableDate(body.preferredStartAt, "preferredStartAt");
     const preferredEndAt = parseNullableDate(body.preferredEndAt, "preferredEndAt");

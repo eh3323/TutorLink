@@ -272,7 +272,7 @@ export function ProfileEditor({ initialData }: { initialData: InitialData }) {
                 type="number"
                 step="1"
                 min={0}
-                max={1000}
+                max={10000}
                 value={tutorRate}
                 onChange={(e) => setTutorRate(e.target.value)}
                 className={inputClass}
@@ -370,7 +370,7 @@ export function ProfileEditor({ initialData }: { initialData: InitialData }) {
                 type="number"
                 step="1"
                 min={0}
-                max={1000}
+                max={10000}
                 value={tuteeBudget}
                 onChange={(e) => setTuteeBudget(e.target.value)}
                 className={inputClass}

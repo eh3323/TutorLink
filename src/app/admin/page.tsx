@@ -24,7 +24,7 @@ export default async function AdminOverviewPage() {
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+        <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
           Overview
         </p>
         <h1 className="text-2xl font-semibold text-white">Platform health</h1>
@@ -48,7 +48,7 @@ export default async function AdminOverviewPage() {
               <Link
                 key={c.label}
                 href={c.href}
-                className="rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-cyan-400/40 hover:bg-white/10"
+                className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4 transition hover:border-amber-400/50 hover:bg-amber-400/10"
               >
                 {body}
               </Link>
@@ -68,9 +68,9 @@ export default async function AdminOverviewPage() {
       <section className="grid gap-4 md:grid-cols-2">
         <Link
           href="/admin/users"
-          className="rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:border-cyan-400/40 hover:bg-white/10"
+          className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-5 transition hover:border-amber-400/50 hover:bg-amber-400/10"
         >
-          <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
             Users
           </p>
           <h2 className="mt-1 text-lg font-semibold text-white">Search, suspend, promote</h2>
@@ -80,9 +80,9 @@ export default async function AdminOverviewPage() {
         </Link>
         <Link
           href="/admin/tutors?status=PENDING"
-          className="rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:border-cyan-400/40 hover:bg-white/10"
+          className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-5 transition hover:border-amber-400/50 hover:bg-amber-400/10"
         >
-          <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
             Tutor verification
           </p>
           <h2 className="mt-1 text-lg font-semibold text-white">

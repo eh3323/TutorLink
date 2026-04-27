@@ -217,7 +217,7 @@ export async function PATCH(request: Request) {
                     tutorProfileInput,
                     "hourlyRateCents",
                     "tutorProfile.hourlyRateCents",
-                    { min: 0, max: 100000 },
+                    { min: 0, max: 1000000 },
                   ),
                 }
               : {}),
@@ -279,7 +279,7 @@ export async function PATCH(request: Request) {
                     tuteeProfileInput,
                     "preferredBudgetCents",
                     "tuteeProfile.preferredBudgetCents",
-                    { min: 0, max: 100000 },
+                    { min: 0, max: 1000000 },
                   ),
                 }
               : {}),

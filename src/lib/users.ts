@@ -50,6 +50,7 @@ function formatPublicUser(user: PublicUserRecord) {
   return {
     id: user.id,
     role,
+    isAdmin: user.isAdmin === true,
     profile: {
       fullName: user.profile.fullName,
       major: user.profile.major,

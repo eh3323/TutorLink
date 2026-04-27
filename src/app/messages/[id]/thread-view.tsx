@@ -369,7 +369,7 @@ function ScheduleForm({
           <input
             type="number"
             min={0}
-            max={1000}
+            max={10000}
             value={agreedRate}
             onChange={(e) => setAgreedRate(e.target.value)}
             className="mt-1 w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white focus:border-cyan-300"

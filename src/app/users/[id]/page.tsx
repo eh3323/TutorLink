@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ApiError } from "@/lib/api";
 import { Avatar } from "@/components/avatar";
+import { RoleBadge } from "@/components/role-badge";
 import { auth } from "@/lib/auth";
 import {
   formatCurrencyCents,
@@ -68,19 +69,10 @@ export default async function UserProfilePage({
               <h1 className="text-2xl font-semibold text-white">
                 {user.profile.fullName}
               </h1>
+              <RoleBadge role={user.role} isAdmin={user.isAdmin} />
               {tutorBlock?.verificationStatus === "VERIFIED" ? (
                 <span className="rounded-full bg-emerald-400/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-200">
                   Verified tutor
-                </span>
-              ) : null}
-              {tutorBlock ? (
-                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-slate-300">
-                  Tutor
-                </span>
-              ) : null}
-              {tuteeBlock ? (
-                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-slate-300">
-                  Tutee
                 </span>
               ) : null}
             </div>
