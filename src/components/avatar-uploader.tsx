@@ -21,6 +21,18 @@ export function AvatarUploader({ fullName, initialAvatarUrl }: Props) {
     const file = event.target.files?.[0];
     if (!file) return;
     setError(null);
+
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Photo must be 2 MB or smaller.");
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    if (!/^image\/(png|jpe?g|webp|gif)$/i.test(file.type)) {
+      setError("Use a PNG, JPEG, WEBP, or GIF image.");
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+
     setIsBusy("upload");
     try {
       const formData = new FormData();
@@ -29,9 +41,9 @@ export function AvatarUploader({ fullName, initialAvatarUrl }: Props) {
         method: "POST",
         body: formData,
       });
-      const payload = await response.json();
-      if (!response.ok || !payload.ok) {
-        setError(payload?.error?.message ?? "Could not upload avatar.");
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.ok) {
+        setError(payload?.error?.message ?? `Upload failed (${response.status}).`);
       } else {
         setAvatarUrl(payload.data.avatarUrl);
         router.refresh();

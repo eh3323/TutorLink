@@ -51,3 +51,4 @@ next-env.d.ts
 # user uploaded avatars (keep folder via .gitkeep)
 /public/avatars/*
 !/public/avatars/.gitkeep
+.env*.local

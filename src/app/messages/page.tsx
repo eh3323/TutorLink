@@ -74,7 +74,10 @@ export default async function MessagesPage() {
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-semibold text-white">
+                    <p
+                      className="truncate text-sm font-semibold text-white"
+                      title="Click the row to open the conversation. Tap their name inside to view their profile."
+                    >
                       {thread.counterpart.fullName}
                     </p>
                     <span className="rounded-full border border-white/10 bg-slate-950/60 px-2 py-0.5 text-[9px] uppercase tracking-wide text-slate-300">

@@ -74,6 +74,30 @@ export function ProfileEditor({ initialData }: { initialData: InitialData }) {
   const [tutorAvailability, setTutorAvailability] = useState(
     initialData.tutorProfile?.availabilityNotes ?? "",
   );
+  const [tutorVerification, setTutorVerification] = useState(
+    initialData.tutorProfile?.verificationStatus ?? "UNVERIFIED",
+  );
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  async function submitForVerification() {
+    setVerifyError(null);
+    setIsVerifying(true);
+    try {
+      const response = await fetch("/api/profile/verify", { method: "POST" });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        setVerifyError(payload?.error?.message ?? "Could not submit for verification.");
+      } else {
+        setTutorVerification(payload.data.verificationStatus);
+        router.refresh();
+      }
+    } catch {
+      setVerifyError("Network error. Try again.");
+    } finally {
+      setIsVerifying(false);
+    }
+  }
 
   const [tuteeGoals, setTuteeGoals] = useState(initialData.tuteeProfile?.learningGoals ?? "");
   const [tuteeBudget, setTuteeBudget] = useState<string>(
@@ -286,6 +310,42 @@ export function ProfileEditor({ initialData }: { initialData: InitialData }) {
               />
             </Field>
           </div>
+
+          <div className="mt-6 flex flex-col gap-3 rounded-xl border border-white/10 bg-slate-950/50 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-white">Verification</p>
+              <p className="mt-1 text-xs text-slate-400">
+                Verified tutors get a badge and rank higher in search. Submit your
+                profile and an admin will review it shortly.
+              </p>
+              <p className="mt-2 text-xs text-cyan-200">
+                Current status: {formatVerificationStatus(tutorVerification)}
+              </p>
+              {verifyError ? (
+                <p className="mt-2 rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
+                  {verifyError}
+                </p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={submitForVerification}
+              disabled={
+                isVerifying ||
+                tutorVerification === "VERIFIED" ||
+                tutorVerification === "PENDING"
+              }
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-cyan-300 px-4 text-sm font-semibold text-slate-950 hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {tutorVerification === "VERIFIED"
+                ? "Verified"
+                : tutorVerification === "PENDING"
+                  ? "Awaiting review"
+                  : isVerifying
+                    ? "Submitting…"
+                    : "Submit for verification"}
+            </button>
+          </div>
         </section>
       ) : null}
 
@@ -361,6 +421,12 @@ export function ProfileEditor({ initialData }: { initialData: InitialData }) {
       </div>
     </form>
   );
+}
+
+function formatVerificationStatus(status: string) {
+  if (status === "VERIFIED") return "Verified";
+  if (status === "PENDING") return "Pending review";
+  return "Unverified";
 }
 
 function Field({

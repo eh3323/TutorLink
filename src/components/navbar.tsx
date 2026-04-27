@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Avatar } from "@/components/avatar";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { NotificationsButton } from "@/components/notifications-button";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -57,6 +58,7 @@ export async function Navbar() {
         <div className="ml-auto flex items-center gap-3">
           {user ? (
             <>
+              <NotificationsButton />
               <Link
                 href="/profile"
                 className="hidden items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-slate-200 transition hover:bg-white/10 sm:inline-flex"

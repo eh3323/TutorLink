@@ -99,9 +99,16 @@ export function ThreadView({
   return (
     <section className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/5">
       <header className="flex items-center gap-3 border-b border-white/10 p-5">
-        <Avatar name={counterpart.fullName} src={counterpart.avatarUrl} size="md" />
+        <Link href={`/users/${counterpart.id}`} className="shrink-0">
+          <Avatar name={counterpart.fullName} src={counterpart.avatarUrl} size="md" />
+        </Link>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-white">{counterpart.fullName}</p>
+          <Link
+            href={`/users/${counterpart.id}`}
+            className="text-sm font-semibold text-white hover:underline"
+          >
+            {counterpart.fullName}
+          </Link>
           <p className="text-xs text-slate-400">
             You as {viewerIsTutor ? "tutor" : "tutee"} · {counterpart.email}
           </p>
@@ -115,10 +122,10 @@ export function ThreadView({
             {showScheduler ? "Close" : "Schedule session"}
           </button>
           <Link
-            href={`/tutors/${participants.tutor.id}`}
+            href={`/users/${counterpart.id}`}
             className="hidden rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-white/10 sm:block"
           >
-            Tutor profile
+            View profile
           </Link>
         </div>
       </header>
