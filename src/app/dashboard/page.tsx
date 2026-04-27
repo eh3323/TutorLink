@@ -242,7 +242,7 @@ export default async function DashboardPage() {
               <div>
                 <p className="text-xs uppercase tracking-wide text-slate-400">Verification</p>
                 <p className="mt-1 text-sm text-white">
-                  {formatStatusLabel(tutorProfile.verificationStatus)}
+                  {formatStatusLabel(user.verificationStatus ?? "UNVERIFIED")}
                 </p>
               </div>
             </div>

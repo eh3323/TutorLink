@@ -51,6 +51,7 @@ function formatPublicUser(user: PublicUserRecord) {
     id: user.id,
     role,
     isAdmin: user.isAdmin === true,
+    verificationStatus: user.verificationStatus,
     profile: {
       fullName: user.profile.fullName,
       major: user.profile.major,

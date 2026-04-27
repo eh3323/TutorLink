@@ -8,6 +8,10 @@ type InitialData = {
     id: string;
     email: string;
     role: string | null;
+    isAdmin?: boolean;
+    verificationStatus?: string;
+    verificationNote?: string | null;
+    verificationSubmittedAt?: Date | string | null;
   };
   profile: {
     fullName: string;
@@ -74,22 +78,39 @@ export function ProfileEditor({ initialData }: { initialData: InitialData }) {
   const [tutorAvailability, setTutorAvailability] = useState(
     initialData.tutorProfile?.availabilityNotes ?? "",
   );
-  const [tutorVerification, setTutorVerification] = useState(
-    initialData.tutorProfile?.verificationStatus ?? "UNVERIFIED",
+  const [verification, setVerification] = useState(
+    initialData.user.verificationStatus ?? "UNVERIFIED",
   );
+  const [verificationNote, setVerificationNote] = useState(
+    initialData.user.verificationNote ?? "",
+  );
+  const [verifyMessage, setVerifyMessage] = useState("");
   const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [verifyOk, setVerifyOk] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
 
   async function submitForVerification() {
     setVerifyError(null);
+    setVerifyOk(null);
     setIsVerifying(true);
     try {
-      const response = await fetch("/api/profile/verify", { method: "POST" });
+      const response = await fetch("/api/profile/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: verifyMessage.trim() || null }),
+      });
       const payload = await response.json();
       if (!response.ok || !payload.ok) {
-        setVerifyError(payload?.error?.message ?? "Could not submit for verification.");
+        setVerifyError(
+          payload?.error?.message ?? "Could not submit for verification.",
+        );
       } else {
-        setTutorVerification(payload.data.verificationStatus);
+        setVerification(payload.data.verificationStatus);
+        setVerificationNote(payload.data.verificationNote ?? verifyMessage);
+        setVerifyMessage("");
+        setVerifyOk(
+          "Submitted. An admin will review your account shortly.",
+        );
         router.refresh();
       }
     } catch {
@@ -252,6 +273,102 @@ export function ProfileEditor({ initialData }: { initialData: InitialData }) {
         </div>
       </section>
 
+      <section className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-6">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-white">
+              Identity verification
+            </h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Open to every TutorLink user. Submit your account and an admin
+              will confirm you’re a real NYU student. Verified accounts get a
+              badge and tutors rank higher in search.
+            </p>
+          </div>
+          <span
+            className={`mt-2 inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-semibold uppercase tracking-wide sm:mt-0 ${
+              verification === "VERIFIED"
+                ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200"
+                : verification === "PENDING"
+                  ? "border-amber-400/40 bg-amber-400/10 text-amber-200"
+                  : "border-white/10 bg-white/5 text-slate-300"
+            }`}
+          >
+            {formatVerificationStatus(verification)}
+          </span>
+        </div>
+
+        {verification === "VERIFIED" ? (
+          <p className="mt-4 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+            You’re verified. The badge appears wherever you are listed on the
+            platform.
+          </p>
+        ) : verification === "PENDING" ? (
+          <div className="mt-4 space-y-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+            <p>
+              Your submission is in the queue. An admin will approve or follow
+              up shortly. You can resubmit if you need to update your note.
+            </p>
+            {verificationNote ? (
+              <p className="rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2 text-xs italic text-slate-200">
+                “{verificationNote}”
+              </p>
+            ) : null}
+            <textarea
+              rows={3}
+              value={verifyMessage}
+              onChange={(e) => setVerifyMessage(e.target.value)}
+              maxLength={600}
+              className={`${inputClass} min-h-20`}
+              placeholder="Add or update context for the admin (optional)"
+            />
+            <button
+              type="button"
+              onClick={submitForVerification}
+              disabled={isVerifying}
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-amber-300 px-4 text-sm font-semibold text-slate-950 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isVerifying ? "Submitting…" : "Resubmit note"}
+            </button>
+          </div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            <p className="text-sm text-slate-300">
+              In your message, tell us your NYU NetID, NYU.edu email, or any
+              proof you’re a student (links, photos of an ID, etc.). The note
+              is only visible to admins.
+            </p>
+            <textarea
+              rows={3}
+              value={verifyMessage}
+              onChange={(e) => setVerifyMessage(e.target.value)}
+              maxLength={600}
+              className={`${inputClass} min-h-24`}
+              placeholder="e.g. NetID abc123, NYU.edu inbox screenshot uploaded"
+            />
+            <button
+              type="button"
+              onClick={submitForVerification}
+              disabled={isVerifying}
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-amber-300 px-4 text-sm font-semibold text-slate-950 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isVerifying ? "Submitting…" : "Submit for verification"}
+            </button>
+          </div>
+        )}
+
+        {verifyOk ? (
+          <p className="mt-3 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100">
+            {verifyOk}
+          </p>
+        ) : null}
+        {verifyError ? (
+          <p className="mt-3 rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
+            {verifyError}
+          </p>
+        ) : null}
+      </section>
+
       {showTutor ? (
         <section className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-6">
           <h2 className="text-lg font-semibold text-white">Tutor profile</h2>
@@ -309,42 +426,6 @@ export function ProfileEditor({ initialData }: { initialData: InitialData }) {
                 placeholder="Weeknights after 7pm, Sundays all day"
               />
             </Field>
-          </div>
-
-          <div className="mt-6 flex flex-col gap-3 rounded-xl border border-white/10 bg-slate-950/50 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-white">Verification</p>
-              <p className="mt-1 text-xs text-slate-400">
-                Verified tutors get a badge and rank higher in search. Submit your
-                profile and an admin will review it shortly.
-              </p>
-              <p className="mt-2 text-xs text-cyan-200">
-                Current status: {formatVerificationStatus(tutorVerification)}
-              </p>
-              {verifyError ? (
-                <p className="mt-2 rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs text-rose-100">
-                  {verifyError}
-                </p>
-              ) : null}
-            </div>
-            <button
-              type="button"
-              onClick={submitForVerification}
-              disabled={
-                isVerifying ||
-                tutorVerification === "VERIFIED" ||
-                tutorVerification === "PENDING"
-              }
-              className="inline-flex h-10 items-center justify-center rounded-lg bg-cyan-300 px-4 text-sm font-semibold text-slate-950 hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {tutorVerification === "VERIFIED"
-                ? "Verified"
-                : tutorVerification === "PENDING"
-                  ? "Awaiting review"
-                  : isVerifying
-                    ? "Submitting…"
-                    : "Submit for verification"}
-            </button>
           </div>
         </section>
       ) : null}

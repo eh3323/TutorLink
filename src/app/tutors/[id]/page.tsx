@@ -53,13 +53,13 @@ export default async function TutorDetailPage({
           <div className="flex-1 space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-semibold text-white">{tutor.profile.fullName}</h1>
-              {tutor.tutorProfile.verificationStatus === "VERIFIED" ? (
+              {tutor.verificationStatus === "VERIFIED" ? (
                 <span className="rounded-full bg-emerald-400/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-200">
                   Verified
                 </span>
               ) : (
                 <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-slate-300">
-                  {formatStatusLabel(tutor.tutorProfile.verificationStatus)}
+                  {formatStatusLabel(tutor.verificationStatus ?? "UNVERIFIED")}
                 </span>
               )}
             </div>

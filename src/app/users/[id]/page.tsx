@@ -70,9 +70,9 @@ export default async function UserProfilePage({
                 {user.profile.fullName}
               </h1>
               <RoleBadge role={user.role} isAdmin={user.isAdmin} />
-              {tutorBlock?.verificationStatus === "VERIFIED" ? (
+              {user.verificationStatus === "VERIFIED" ? (
                 <span className="rounded-full bg-emerald-400/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-200">
-                  Verified tutor
+                  Verified
                 </span>
               ) : null}
             </div>
@@ -120,9 +120,9 @@ export default async function UserProfilePage({
                       {tutorBlock.defaultLocation ? ` (${tutorBlock.defaultLocation})` : ""}
                     </span>
                   ) : null}
-                  {tutorBlock.verificationStatus !== "VERIFIED" ? (
+                  {user.verificationStatus !== "VERIFIED" ? (
                     <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-300">
-                      {formatStatusLabel(tutorBlock.verificationStatus)}
+                      {formatStatusLabel(user.verificationStatus ?? "UNVERIFIED")}
                     </span>
                   ) : null}
                 </div>

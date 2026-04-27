@@ -1,5 +1,5 @@
 import { ApiError, apiOk, handleRouteError, readJsonBody } from "@/lib/api";
-import { setTutorVerification } from "@/lib/admin";
+import { setUserVerification } from "@/lib/admin";
 import { requireAdmin } from "@/lib/permissions";
 import { parseString, requireObject } from "@/lib/validation";
 
@@ -20,7 +20,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (!verificationStatus) {
       throw new ApiError(400, "INVALID_INPUT", "verificationStatus is required.");
     }
-    return apiOk(await setTutorVerification(id, verificationStatus));
+    return apiOk(await setUserVerification(id, verificationStatus));
   } catch (error) {
     return handleRouteError(error);
   }

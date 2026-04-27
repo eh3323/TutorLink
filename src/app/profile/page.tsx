@@ -16,8 +16,7 @@ export default async function ProfilePage() {
 
   const data = await getCurrentUserProfileData(session.user.id);
   const isAdmin = session.user.isAdmin === true;
-  const verificationStatus = data.tutorProfile?.verificationStatus ?? null;
-  const isTutor = data.capabilities.canActAsTutor;
+  const verificationStatus = data.user.verificationStatus ?? "UNVERIFIED";
 
   return (
     <main className="flex-1">
@@ -43,20 +42,28 @@ export default async function ProfilePage() {
           See how others view your profile →
         </Link>
 
-        {isTutor && verificationStatus !== "VERIFIED" ? (
-          <div className="rounded-2xl border border-cyan-400/30 bg-cyan-400/5 p-4 text-sm text-cyan-100">
+        {verificationStatus !== "VERIFIED" ? (
+          <div className="rounded-2xl border border-amber-400/30 bg-amber-400/5 p-4 text-sm text-amber-100">
             <p className="font-semibold text-white">
               {verificationStatus === "PENDING"
                 ? "Verification pending"
-                : "Get your tutor profile verified"}
+                : "Get verified"}
             </p>
-            <p className="mt-1 text-xs text-cyan-100/80">
+            <p className="mt-1 text-xs text-amber-100/80">
               {verificationStatus === "PENDING"
-                ? "An admin will review your profile soon. Verified tutors get a badge and rank higher in search."
-                : "Fill in your headline, hourly rate, and at least one subject, then click Submit for verification in the Tutor section below. An admin will review and grant the badge."}
+                ? "An admin will approve your account soon. You'll get a badge across the platform once approved."
+                : "Anyone can apply — tutors and tutees alike. Submit a short note in the Identity verification section below and an admin will review it."}
             </p>
           </div>
-        ) : null}
+        ) : (
+          <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/5 p-4 text-sm text-emerald-100">
+            <p className="font-semibold text-white">Verified</p>
+            <p className="mt-1 text-xs text-emerald-100/80">
+              Your account is verified. The badge appears wherever you are
+              listed on TutorLink.
+            </p>
+          </div>
+        )}
 
         <AvatarUploader
           fullName={data.profile?.fullName ?? data.user.email}

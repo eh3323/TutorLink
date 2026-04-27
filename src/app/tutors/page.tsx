@@ -147,7 +147,7 @@ export default async function TutorsPage({
                       : ""}
                   </p>
                 </div>
-                {tutor.tutorProfile.verificationStatus === "VERIFIED" ? (
+                {tutor.verificationStatus === "VERIFIED" ? (
                   <span className="rounded-full bg-emerald-400/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-200">
                     Verified
                   </span>

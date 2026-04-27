@@ -94,6 +94,7 @@ function formatTutorSummary(user: TutorListRecord) {
   return {
     id: user.id,
     role: user.role,
+    verificationStatus: user.verificationStatus,
     profile: {
       fullName: user.profile.fullName,
       major: user.profile.major,
@@ -139,6 +140,7 @@ function formatTutorDetail(user: TutorDetailRecord) {
   return {
     id: user.id,
     role: user.role,
+    verificationStatus: user.verificationStatus,
     profile: {
       fullName: user.profile.fullName,
       major: user.profile.major,
@@ -262,22 +264,18 @@ export async function listTutors(searchParams: TutorSearchParams) {
       profile: {
         isNot: null,
       },
+      ...(searchParams.verified === true
+        ? { verificationStatus: VerificationStatus.VERIFIED }
+        : {}),
+      ...(searchParams.verified === false
+        ? { verificationStatus: { not: VerificationStatus.VERIFIED } }
+        : {}),
       tutorProfile: {
         is: {
           ...(searchParams.minRate != null ? { hourlyRateCents: { gte: searchParams.minRate } } : {}),
           ...(searchParams.maxRate != null ? { hourlyRateCents: { lte: searchParams.maxRate } } : {}),
           ...(searchParams.mode === "online" ? { supportsOnline: true } : {}),
           ...(searchParams.mode === "in-person" ? { supportsInPerson: true } : {}),
-          ...(searchParams.verified === true
-            ? { verificationStatus: VerificationStatus.VERIFIED }
-            : {}),
-          ...(searchParams.verified === false
-            ? {
-                verificationStatus: {
-                  not: VerificationStatus.VERIFIED,
-                },
-              }
-            : {}),
           ...(searchParams.subject
             ? {
                 subjects: {
@@ -310,14 +308,8 @@ export async function listTutors(searchParams: TutorSearchParams) {
     },
     include: tutorListInclude,
     orderBy: [
-      {
-        tutorProfile: {
-          verificationStatus: "asc",
-        },
-      },
-      {
-        createdAt: "desc",
-      },
+      { verificationStatus: "asc" },
+      { createdAt: "desc" },
     ],
   });
 

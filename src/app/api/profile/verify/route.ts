@@ -1,43 +1,68 @@
-import { ApiError, apiOk, handleRouteError } from "@/lib/api";
+import { ApiError, apiOk, handleRouteError, readJsonBody } from "@/lib/api";
 import { db } from "@/lib/db";
 import { VerificationStatus } from "@/lib/enums";
-import { canActAsTutor, requireSessionUser } from "@/lib/permissions";
+import { requireSessionUser } from "@/lib/permissions";
+import { parseString, requireObject } from "@/lib/validation";
 
-export async function POST() {
+type VerifyBody = { note?: unknown };
+
+export async function POST(request: Request) {
   try {
     const sessionUser = await requireSessionUser();
 
-    if (!canActAsTutor(sessionUser.role)) {
+    const profile = await db.profile.findUnique({
+      where: { userId: sessionUser.id },
+    });
+    if (!profile || !profile.fullName?.trim()) {
       throw new ApiError(
         400,
-        "INVALID_INPUT",
-        "Only tutor accounts can request verification.",
+        "PROFILE_INCOMPLETE",
+        "Add your full name in the profile before requesting verification.",
       );
     }
 
-    const tutorProfile = await db.tutorProfile.findUnique({
-      where: { userId: sessionUser.id },
-    });
-
-    if (!tutorProfile) {
-      throw new ApiError(
-        404,
-        "TUTOR_PROFILE_NOT_FOUND",
-        "Set up your tutor profile before requesting verification.",
-      );
+    let note: string | null = null;
+    try {
+      const raw = await request.json().catch(() => null);
+      if (raw && typeof raw === "object") {
+        const body = requireObject(raw as VerifyBody);
+        note =
+          parseString(body.note, {
+            field: "note",
+            required: false,
+            maxLength: 600,
+          }) ?? null;
+      }
+    } catch {
+      // ignore body parse errors; note stays null
     }
 
-    if (tutorProfile.verificationStatus === VerificationStatus.VERIFIED) {
-      return apiOk({ verificationStatus: tutorProfile.verificationStatus });
-    }
-
-    const updated = await db.tutorProfile.update({
-      where: { userId: sessionUser.id },
-      data: { verificationStatus: VerificationStatus.PENDING },
+    const fresh = await db.user.findUnique({
+      where: { id: sessionUser.id },
       select: { verificationStatus: true },
     });
+    if (fresh?.verificationStatus === VerificationStatus.VERIFIED) {
+      return apiOk({
+        verificationStatus: VerificationStatus.VERIFIED,
+        verificationNote: null,
+      });
+    }
 
-    return apiOk({ verificationStatus: updated.verificationStatus });
+    const updated = await db.user.update({
+      where: { id: sessionUser.id },
+      data: {
+        verificationStatus: VerificationStatus.PENDING,
+        verificationNote: note ?? null,
+        verificationSubmittedAt: new Date(),
+      },
+      select: {
+        verificationStatus: true,
+        verificationNote: true,
+        verificationSubmittedAt: true,
+      },
+    });
+
+    return apiOk(updated);
   } catch (error) {
     return handleRouteError(error);
   }

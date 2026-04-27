@@ -36,6 +36,9 @@ export function formatAdminUser(user: AdminUserRecord) {
     role: user.role,
     isAdmin: user.isAdmin,
     isSuspended: user.isSuspended,
+    verificationStatus: user.verificationStatus,
+    verificationNote: user.verificationNote,
+    verificationSubmittedAt: user.verificationSubmittedAt,
     schoolEmailVerifiedAt: user.schoolEmailVerifiedAt,
     createdAt: user.createdAt,
     profile: user.profile
@@ -124,7 +127,7 @@ export async function getAdminStats() {
     db.user.count({ where: { role: { in: [Role.TUTEE, Role.BOTH] } } }),
     db.user.count({ where: { isAdmin: true } }),
     db.user.count({ where: { isSuspended: true } }),
-    db.tutorProfile.count({
+    db.user.count({
       where: { verificationStatus: VerificationStatus.PENDING },
     }),
     db.tutoringRequest.count(),
@@ -244,63 +247,83 @@ export async function deleteUser(currentAdminId: string, targetUserId: string) {
   return { id: targetUserId };
 }
 
-const adminTutorInclude = Prisma.validator<Prisma.TutorProfileInclude>()({
-  user: {
-    include: { profile: true },
+const verificationUserInclude = Prisma.validator<Prisma.UserInclude>()({
+  profile: true,
+  tutorProfile: {
+    include: {
+      subjects: { include: { subject: true } },
+    },
   },
-  subjects: {
-    include: { subject: true },
-  },
+  tuteeProfile: true,
 });
 
-export async function listAdminTutors(params: { status?: string | null }) {
-  const where: Prisma.TutorProfileWhereInput = {};
-  if (params.status && ["UNVERIFIED", "PENDING", "VERIFIED"].includes(params.status)) {
+export async function listAdminVerifications(params: { status?: string | null }) {
+  const where: Prisma.UserWhereInput = {};
+  if (
+    params.status &&
+    ["UNVERIFIED", "PENDING", "VERIFIED"].includes(params.status)
+  ) {
     where.verificationStatus = params.status;
   }
-  const tutors = await db.tutorProfile.findMany({
+  const users = await db.user.findMany({
     where,
-    include: adminTutorInclude,
-    orderBy: { updatedAt: "desc" },
+    include: verificationUserInclude,
+    orderBy: [{ verificationSubmittedAt: "desc" }, { updatedAt: "desc" }],
     take: 200,
   });
 
-  return tutors.map((t) => ({
-    id: t.id,
-    userId: t.userId,
-    headline: t.headline,
-    hourlyRateCents: t.hourlyRateCents,
-    verificationStatus: t.verificationStatus,
-    updatedAt: t.updatedAt,
-    user: {
-      id: t.user.id,
-      email: t.user.email,
-      fullName: t.user.profile?.fullName ?? t.user.email,
-      avatarUrl: t.user.profile?.avatarUrl ?? null,
-      major: t.user.profile?.major ?? null,
-    },
-    subjects: t.subjects.map((s) => ({
-      department: s.subject.department,
-      code: s.subject.code,
-      name: s.subject.name,
-    })),
+  return users.map((u) => ({
+    id: u.id,
+    email: u.email,
+    role: u.role,
+    isAdmin: u.isAdmin,
+    isSuspended: u.isSuspended,
+    verificationStatus: u.verificationStatus,
+    verificationNote: u.verificationNote,
+    verificationSubmittedAt: u.verificationSubmittedAt,
+    fullName: u.profile?.fullName ?? u.email,
+    avatarUrl: u.profile?.avatarUrl ?? null,
+    major: u.profile?.major ?? null,
+    graduationYear: u.profile?.graduationYear ?? null,
+    bio: u.profile?.bio ?? null,
+    tutor: u.tutorProfile
+      ? {
+          headline: u.tutorProfile.headline,
+          hourlyRateCents: u.tutorProfile.hourlyRateCents,
+          subjects: u.tutorProfile.subjects.map((s) => ({
+            department: s.subject.department,
+            code: s.subject.code,
+            name: s.subject.name,
+          })),
+        }
+      : null,
+    tutee: u.tuteeProfile
+      ? {
+          learningGoals: u.tuteeProfile.learningGoals,
+          preferredBudgetCents: u.tuteeProfile.preferredBudgetCents,
+        }
+      : null,
   }));
 }
 
-export async function setTutorVerification(
-  tutorProfileId: string,
-  status: string,
-) {
+export async function setUserVerification(userId: string, status: string) {
   if (!["UNVERIFIED", "PENDING", "VERIFIED"].includes(status)) {
     throw new ApiError(400, "INVALID_INPUT", "Invalid verification status.");
   }
-  const tutor = await db.tutorProfile.findUnique({ where: { id: tutorProfileId } });
-  if (!tutor) {
-    throw new ApiError(404, "USER_NOT_FOUND", "Tutor profile not found.");
+  const user = await db.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new ApiError(404, "USER_NOT_FOUND", "User not found.");
   }
-  const updated = await db.tutorProfile.update({
-    where: { id: tutorProfileId },
-    data: { verificationStatus: status },
+  const updated = await db.$transaction(async (tx) => {
+    const u = await tx.user.update({
+      where: { id: userId },
+      data: { verificationStatus: status },
+    });
+    await tx.tutorProfile.updateMany({
+      where: { userId },
+      data: { verificationStatus: status },
+    });
+    return u;
   });
   return {
     id: updated.id,

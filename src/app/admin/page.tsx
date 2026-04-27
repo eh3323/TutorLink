@@ -11,7 +11,7 @@ export default async function AdminOverviewPage() {
     { label: "Tutees", value: stats.tuteeCount },
     { label: "Admins", value: stats.adminCount },
     { label: "Suspended", value: stats.suspendedCount },
-    { label: "Pending verification", value: stats.pendingVerification, href: "/admin/tutors?status=PENDING" },
+    { label: "Pending verification", value: stats.pendingVerification, href: "/admin/verifications?status=PENDING" },
     { label: "Requests", value: stats.requestCount, href: "/admin/requests" },
     { label: "Open requests", value: stats.openRequestCount, href: "/admin/requests" },
     { label: "Threads", value: stats.threadCount },
@@ -79,17 +79,17 @@ export default async function AdminOverviewPage() {
           </p>
         </Link>
         <Link
-          href="/admin/tutors?status=PENDING"
+          href="/admin/verifications?status=PENDING"
           className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-5 transition hover:border-amber-400/50 hover:bg-amber-400/10"
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
-            Tutor verification
+            Identity verification
           </p>
           <h2 className="mt-1 text-lg font-semibold text-white">
-            {stats.pendingVerification} tutors waiting
+            {stats.pendingVerification} accounts waiting
           </h2>
           <p className="mt-2 text-sm text-slate-400">
-            Approve or reject tutor verification requests.
+            Approve or reject submissions from any tutor or tutee.
           </p>
         </Link>
       </section>
