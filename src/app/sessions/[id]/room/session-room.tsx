@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Avatar } from "@/components/avatar";
-import { formatRelativeTime } from "@/lib/format";
+import { formatDateTime, formatRelativeTime } from "@/lib/format";
 
 type Person = {
   id: string;
@@ -173,6 +173,9 @@ export function SessionRoom({
             <h1 className="mt-1 truncate text-xl font-semibold text-white">
               Live with {counterpart.fullName} · {subjectLabel}
             </h1>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              Scheduled for {formatDateTime(scheduledAt)}
+            </p>
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-300">
             <span className="rounded-full border border-cyan-400/40 bg-cyan-400/10 px-3 py-1 font-semibold text-cyan-100">

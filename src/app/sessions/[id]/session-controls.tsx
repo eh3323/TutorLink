@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { formatDateTime } from "@/lib/format";
+
 type Status = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
 
 type Props = {
@@ -151,7 +153,7 @@ export function SessionControls({
       {status === "CONFIRMED" ? (
         <>
           <p className="text-sm text-slate-300">
-            Locked in for {new Date(scheduledAtIso).toLocaleString()}{" "}
+            Locked in for {formatDateTime(scheduledAtIso)}{" "}
             {beforeOpen > 0 ? <span className="text-slate-400">· room opens {fmtCountdown(beforeOpen)}</span> : null}
           </p>
           <div className="flex flex-wrap gap-2">

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { formatDateTime } from "@/lib/format";
+
 type Notification = {
   threadId: string;
   snippet: string;
@@ -110,7 +112,7 @@ export function NotificationsButton() {
                   >
                     <p className="line-clamp-2 text-sm text-white">{item.snippet || "(no preview)"}</p>
                     <p className="mt-1 text-[10px] text-slate-500">
-                      {new Date(item.createdAt).toLocaleString()}
+                      {formatDateTime(item.createdAt)}
                     </p>
                   </Link>
                 </li>

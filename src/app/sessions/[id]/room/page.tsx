@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { ApiError } from "@/lib/api";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { formatDateTime } from "@/lib/format";
 import { getSessionDetailForUser, isSessionLive } from "@/lib/sessions";
 import { SessionRoom } from "./session-room";
 
@@ -55,8 +56,8 @@ export default async function SessionRoomPage({
     const closedAt = scheduledAt.getTime() + detail.durationMinutes * 60_000 + 30 * 60_000;
     const message =
       now < opensAt
-        ? `Room opens 15 minutes before the session at ${scheduledAt.toLocaleString()}.`
-        : `Room closed at ${new Date(closedAt).toLocaleString()}.`;
+        ? `Room opens 15 minutes before the session at ${formatDateTime(scheduledAt)}.`
+        : `Room closed at ${formatDateTime(new Date(closedAt))}.`;
     return (
       <main className="flex-1">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-6 py-12 text-center">

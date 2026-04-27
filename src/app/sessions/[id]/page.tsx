@@ -155,7 +155,7 @@ export default async function SessionDetailPage({
                         {review.authorIsMe ? "You" : review.author.fullName}
                       </p>
                       <p className="text-xs text-slate-400">
-                        {review.rating}★ · {new Date(review.createdAt).toLocaleString()}
+                        {review.rating}★ · {formatDateTime(review.createdAt)}
                       </p>
                     </div>
                   </div>

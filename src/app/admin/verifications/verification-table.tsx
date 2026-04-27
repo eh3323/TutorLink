@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { Avatar } from "@/components/avatar";
 import { RoleBadge } from "@/components/role-badge";
-import { formatCurrencyCents } from "@/lib/format";
+import { formatCurrencyCents, formatDateTime } from "@/lib/format";
 
 type AdminUserVerification = {
   id: string;
@@ -39,13 +39,9 @@ type AdminUserVerification = {
 
 function formatSubmittedAt(value: Date | string | null) {
   if (!value) return null;
-  try {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return null;
-    return date.toLocaleString();
-  } catch {
-    return null;
-  }
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return null;
+  return formatDateTime(date);
 }
 
 function formatBytes(bytes: number | null) {

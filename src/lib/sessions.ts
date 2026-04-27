@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { ApiError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { DeliveryMode, Role, SessionStatus } from "@/lib/enums";
+import { formatDateTime } from "@/lib/format";
 import { canActAsTutee, canActAsTutor, SessionUser } from "@/lib/permissions";
 
 const sessionInclude = Prisma.validator<Prisma.SessionInclude>()({
@@ -120,7 +121,7 @@ async function findConflict(
 }
 
 function describeConflict(c: { scheduledAt: Date; durationMinutes: number; subject: { department: string; code: string } }) {
-  return `${c.subject.department} ${c.subject.code} at ${c.scheduledAt.toISOString()} (${c.durationMinutes}m)`;
+  return `${c.subject.department} ${c.subject.code} at ${formatDateTime(c.scheduledAt)} (${c.durationMinutes}m)`;
 }
 
 function formatSession(session: SessionRecord) {
@@ -264,7 +265,7 @@ export async function createSession(sessionUser: SessionUser, input: CreateSessi
     include: sessionInclude,
   });
 
-  const when = input.scheduledAt.toLocaleString();
+  const when = formatDateTime(input.scheduledAt);
   await postThreadNote(
     created.threadId,
     sessionUser.id,
@@ -374,7 +375,7 @@ export async function acceptSession(sessionUser: SessionUser, sessionId: string)
   await postThreadNote(
     updated.threadId,
     sessionUser.id,
-    `accepted the session — ${updated.subject.department} ${updated.subject.code} on ${updated.scheduledAt.toLocaleString()}. it's locked in.`,
+    `accepted the session — ${updated.subject.department} ${updated.subject.code} on ${formatDateTime(updated.scheduledAt)}. it's locked in.`,
   );
 
   return formatSession(updated);
@@ -543,12 +544,17 @@ export function buildIcs(session: {
     .filter(Boolean)
     .join("\\n");
 
+  // dtstart/dtend stay in UTC ('Z' suffix) which every calendar app resolves
+  // unambiguously. we also tag the calendar with X-WR-TIMEZONE so apps that
+  // honor it (apple calendar, google calendar) display the event in NY time
+  // by default.
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//TutorLink//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
+    "X-WR-TIMEZONE:America/New_York",
     "BEGIN:VEVENT",
     `UID:${session.id}@tutorlink`,
     `DTSTAMP:${stamp}`,

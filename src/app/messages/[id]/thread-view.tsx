@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Avatar } from "@/components/avatar";
-import { formatRelativeTime } from "@/lib/format";
+import {
+  formatRelativeTime,
+  nyDateTimeLocalFromDate,
+  nyDateTimeLocalToDate,
+} from "@/lib/format";
 
 type Message = {
   id: string;
@@ -231,9 +235,11 @@ export function ThreadView({
   );
 }
 
-function toLocalInput(defaultDate: Date) {
-  const tzOffset = defaultDate.getTimezoneOffset() * 60000;
-  return new Date(defaultDate.getTime() - tzOffset).toISOString().slice(0, 16);
+// the input is rendered as the user's local clock by the browser, but we want
+// every TutorLink time to mean nyc time, so we feed the input a string that
+// represents the desired wall time in new york
+function toNyInput(defaultDate: Date) {
+  return nyDateTimeLocalFromDate(defaultDate);
 }
 
 function ScheduleForm({
@@ -259,7 +265,7 @@ function ScheduleForm({
     return d;
   }, []);
   const [subjectId, setSubjectId] = useState(defaultSubjectId);
-  const [scheduledAt, setScheduledAt] = useState(toLocalInput(defaultDate));
+  const [scheduledAt, setScheduledAt] = useState(toNyInput(defaultDate));
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [mode, setMode] = useState<"ONLINE" | "IN_PERSON">("ONLINE");
   const [locationText, setLocationText] = useState("");
@@ -283,7 +289,7 @@ function ScheduleForm({
           subjectId,
           threadId,
           requestId,
-          scheduledAt: new Date(scheduledAt).toISOString(),
+          scheduledAt: nyDateTimeLocalToDate(scheduledAt).toISOString(),
           durationMinutes,
           mode,
           locationText: locationText.trim() || null,
@@ -323,7 +329,7 @@ function ScheduleForm({
           </select>
         </label>
         <label className="block space-y-1 text-xs text-slate-400">
-          When
+          When <span className="text-[10px] text-slate-500">(New York time)</span>
           <input
             type="datetime-local"
             value={scheduledAt}
