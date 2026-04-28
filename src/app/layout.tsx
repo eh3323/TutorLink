@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 
 import "./globals.css";
 import "katex/dist/katex.min.css";
+// load tldraw's css eagerly with the root bundle, not via the dynamically
+// imported whiteboard chunk — otherwise on first mount the css can race the
+// component and you see only the parent container's background (looked black).
+import "tldraw/tldraw.css";
 
 import { Navbar } from "@/components/navbar";
 import { Providers } from "@/components/providers";

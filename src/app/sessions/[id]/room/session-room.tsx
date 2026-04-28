@@ -363,7 +363,9 @@ export function SessionRoom({
           <div className="relative">
             <div
               ref={mainCanvasRef}
-              className="overflow-hidden rounded-2xl border border-white/10 bg-black"
+              className={`overflow-hidden rounded-2xl border border-white/10 ${
+                tab === "whiteboard" ? "bg-white" : "bg-black"
+              }`}
             >
               <div className="relative h-[62vh] min-h-[400px]">
                 <div
