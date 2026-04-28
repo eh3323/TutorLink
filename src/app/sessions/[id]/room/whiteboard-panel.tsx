@@ -3,23 +3,18 @@
 import { Tldraw, type Editor } from "tldraw";
 import { useSyncDemo } from "@tldraw/sync";
 
-// useSyncDemo wires the whiteboard to tldraw's hosted sync server. both sides
-// of the same session join the same roomId (we pass the per-session roomToken)
-// so they see each other's strokes in real time. it's the official "demo"
-// server but it's been stable for our scale; can swap for self-hosted useSync
-// later without touching the ui.
+// uses tldraw's hosted demo sync server. both sides join via the per-session
+// roomToken so strokes propagate live. swap to self-hosted useSync later
+// without touching the ui.
 //
-// note: tldraw.css is imported globally in src/app/layout.tsx so it's bundled
-// eagerly. importing it inside this dynamically-loaded chunk used to race the
-// first paint and made the canvas look completely black (it was rendering
-// without theme variables, so the parent's bg-black showed through).
+// tldraw.css is imported globally in layout.tsx (eager) so the canvas always
+// has its theme variables; importing it here would race the dynamic chunk.
 export default function WhiteboardPanel({ roomId }: { roomId: string }) {
   const store = useSyncDemo({ roomId });
 
-  // the page itself uses color-scheme: dark and a near-black body bg, but the
-  // whiteboard reads better in light mode (white canvas + colored strokes).
-  // forcing light mode also avoids tldraw inheriting the page's dark theme,
-  // which was the root cause of the all-black panel report.
+  // pin to light mode — page is dark but the whiteboard is much more readable
+  // with a white canvas, and it stops tldraw from inheriting the page's
+  // color-scheme (which lands on a near-black bg).
   function handleMount(editor: Editor) {
     editor.user.updateUserPreferences({ colorScheme: "light" });
   }

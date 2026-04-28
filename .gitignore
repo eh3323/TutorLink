@@ -52,3 +52,8 @@ next-env.d.ts
 /public/avatars/*
 !/public/avatars/.gitkeep
 .env*.local
+
+# personal scratch / presentation notes — keep out of public repo
+PRESENTATION_BRIEF.md
+NOTES.md
+SCRATCH.md
